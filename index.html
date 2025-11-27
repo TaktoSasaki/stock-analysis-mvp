@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Analysis Dashboard</title>
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <style>
+        :root {
+            --bg-color: #f8f9fa;
+            --card-bg: #ffffff;
+            --text-main: #333;
+            --text-sub: #666;
+            --border-color: #e0e0e0;
+            --up-color: #26a69a;
+            --down-color: #ef5350;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .last-updated {
+            font-size: 0.9em;
+            color: var(--text-sub);
+        }
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 250px 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 768px) {
+            .dashboard-grid { grid-template-columns: 1fr; }
+        }
+        /* Sidebar */
+        .sidebar {
+            background: var(--card-bg);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            height: fit-content;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .stock-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .stock-item {
+            padding: 10px;
+            cursor: pointer;
+            border-bottom: 1px solid var(--border-color);
+            transition: background 0.2s;
+        }
+        .stock-item:hover { background-color: #f0f0f0; }
+        .stock-item.active {
+            background-color: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            font-weight: bold;
+        }
+        /* Main Content */
+        .main-content {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .stats-panel {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            background: var(--card-bg);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .stat-card {
+            padding: 10px;
+            text-align: center;
+        }
+        .stat-label { font-size: 0.85em; color: var(--text-sub); display: block; margin-bottom: 5px; }
+        .stat-value { font-size: 1.2em; font-weight: bold; }
+        .chart-container {
+            background: var(--card-bg);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            height: 500px;
+            position: relative;
+        }
+        .error-msg { 
+            color: var(--text-sub); 
+            text-align: center; 
+            margin-top: 50px; 
+            line-height: 1.8;
+            background: #fff3cd;
+            color: #856404;
+            padding: 20px;
+            border-radius: 8px;
+        }
+        
+        /* Utility classes for colors */
+        .text-up { color: var(--up-color); }
+        .text-down { color: var(--down-color); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📈 Stock Analysis Dashboard</h1>
+            <div id="lastUpdated" class="last-updated">更新中...</div>
+        </header>
+
+        <div class="dashboard-grid">
+            <aside class="sidebar">
+                <h3>銘柄一覧</h3>
+                <ul id="stockList" class="stock-list">
+                    </ul>
+            </aside>
+
+            <main class="main-content">
+                <div class="stats-panel" id="statsPanel" style="display: none;">
+                    <div class="stat-card">
+                        <span class="stat-label">現在値</span>
+                        <span class="stat-value" id="currentPrice">-</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">年間騰落率</span>
+                        <span class="stat-value" id="yearChange">-</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">年間最高値</span>
+                        <span class="stat-value" id="yearHigh">-</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">年間最安値</span>
+                        <span class="stat-value" id="yearLow">-</span>
+                    </div>
+                </div>
+
+                <div id="chart" class="chart-container"></div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        let chart;
+        let lineSeries;
+        let globalData = null;
+
+        // チャート初期化
+        function initChart() {
+            const container = document.getElementById('chart');
+            chart = LightweightCharts.createChart(container, {
+                width: container.clientWidth,
+                height: container.clientHeight, // CSSで500px指定済み
+                layout: { background: { color: '#ffffff' }, textColor: '#333' },
+                grid: { vertLines: { color: '#f0f0f0' }, horzLines: { color: '#f0f0f0' } },
+                rightPriceScale: { borderVisible: false },
+                timeScale: { borderVisible: false, timeVisible: true },
+            });
+            lineSeries = chart.addLineSeries({
+                color: '#2962FF',
+                lineWidth: 2,
+            });
+
+            // コンテナが表示されている場合のみリサイズを適用
+            new ResizeObserver(entries => {
+                if (entries.length === 0 || entries[0].target !== container) return;
+                const newRect = entries[0].contentRect;
+                if (newRect.width > 0 && newRect.height > 0) {
+                    chart.applyOptions({ width: newRect.width, height: newRect.height });
+                }
+            }).observe(container);
+        }
+
+        // 数値フォーマット (カンマ区切り)
+        const fmt = (num) => num.toLocaleString();
+
+        // データの読み込みと表示
+        async function loadData() {
+            try {
+                // キャッシュ回避用のタイムスタンプ付与（開発中の更新確認用）
+                const response = await fetch('data/stock_data.json?t=' + new Date().getTime());
+                
+                if (response.status === 404) {
+                    throw new Error(
+                        "データファイル(data/stock_data.json)が見つかりません。<br>" +
+                        "初回セットアップ直後は、GitHub Actionsの処理が完了するまで数分待つ必要があります。<br>" +
+                        "Actionsタブで進捗を確認してください。"
+                    );
+                }
+                if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
+                
+                const json = await response.json();
+                globalData = json;
+
+                // 更新日時表示
+                const updateDate = new Date(json.updated_at);
+                document.getElementById('lastUpdated').textContent = 
+                    `最終更新: ${updateDate.toLocaleString('ja-JP')}`;
+
+                renderStockList(json.stocks);
+                
+                // 最初の銘柄を自動選択
+                const firstTicker = Object.keys(json.stocks)[0];
+                if (firstTicker) {
+                    selectStock(firstTicker);
+                }
+
+            } catch (e) {
+                console.error(e);
+                document.getElementById('chart').innerHTML = 
+                    `<div class="error-msg">
+                        <h3>ステータス通知</h3>
+                        <p>${e.message}</p>
+                     </div>`;
+            }
+        }
+
+        // 銘柄リスト描画
+        function renderStockList(stocks) {
+            const list = document.getElementById('stockList');
+            list.innerHTML = '';
+            
+            Object.keys(stocks).forEach(ticker => {
+                const stock = stocks[ticker];
+                const li = document.createElement('li');
+                li.className = 'stock-item';
+                // JSでdatasetにセットすると、DOM上は data-ticker="..." となる
+                li.dataset.ticker = ticker; 
+                li.innerHTML = `
+                    <div style="font-weight:bold;">${stock.name}</div>
+                    <div style="font-size:0.8em; color:#666;">${ticker}</div>
+                `;
+                li.onclick = () => selectStock(ticker);
+                list.appendChild(li);
+            });
+        }
+
+        // 銘柄選択時の処理
+        function selectStock(ticker) {
+            if (!globalData || !globalData.stocks[ticker]) return;
+
+            const stock = globalData.stocks[ticker];
+            const data = stock.data;
+
+            // リストの選択状態更新
+            document.querySelectorAll('.stock-item').forEach(el => el.classList.remove('active'));
+            
+            // data-ticker 属性を選択
+            const targetItem = document.querySelector(`.stock-item[data-ticker="${ticker}"]`);
+            if (targetItem) targetItem.classList.add('active');
+
+            // チャート更新
+            lineSeries.setData(data);
+            
+            // 色の設定
+            const isPositive = stock.year_change_pct >= 0;
+            const color = isPositive ? '#26a69a' : '#ef5350';
+            lineSeries.applyOptions({ color: color });
+            
+            chart.timeScale().fitContent();
+
+            // 統計パネル更新
+            updateStats(stock, isPositive);
+        }
+
+        function updateStats(stock, isPositive) {
+            const panel = document.getElementById('statsPanel');
+            panel.style.display = 'grid';
+
+            document.getElementById('currentPrice').textContent = `${fmt(stock.current_price)}円`;
+            document.getElementById('yearHigh').textContent = `${fmt(stock.year_high)}円`;
+            document.getElementById('yearLow').textContent = `${fmt(stock.year_low)}円`;
+            
+            const changeElem = document.getElementById('yearChange');
+            changeElem.textContent = `${stock.year_change_pct > 0 ? '+' : ''}${stock.year_change_pct}%`;
+            changeElem.className = `stat-value ${isPositive ? 'text-up' : 'text-down'}`;
+        }
+
+        initChart();
+        loadData();
+    </script>
+</body>
+</html>
