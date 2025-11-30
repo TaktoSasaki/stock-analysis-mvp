@@ -5,169 +5,504 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AWS学習</title>
     <script src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-color: #f8f9fa;
-            --card-bg: #ffffff;
-            --text-main: #333;
-            --text-sub: #666;
-            --border-color: #e0e0e0;
-            --up-color: #26a69a;
-            --down-color: #ef5350;
+            --bg-color: #0a0a0f;
+            --card-bg: #12121a;
+            --card-border: #1e1e2e;
+            --text-main: #e4e4e7;
+            --text-sub: #71717a;
+            --text-muted: #52525b;
+            --accent: #f97316;
+            --accent-light: #fb923c;
+            --up-color: #22c55e;
+            --down-color: #ef4444;
+            --search-bg: #18181b;
+            --search-border: #27272a;
+            --hover-bg: #1f1f28;
         }
+        
         * { margin: 0; padding: 0; box-sizing: border-box; }
+        
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            padding: 20px;
+            font-family: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, sans-serif;
+            padding: 24px;
             background-color: var(--bg-color);
             color: var(--text-main);
+            min-height: 100vh;
         }
-        .container { max-width: 1200px; margin: 0 auto; }
+        
+        .container { max-width: 1400px; margin: 0 auto; }
+        
         header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
+            margin-bottom: 28px;
             flex-wrap: wrap;
-            gap: 10px;
+            gap: 16px;
         }
-        h1 { font-size: 1.8em; }
+        
+        .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .logo-icon {
+            width: 42px;
+            height: 42px;
+            background: linear-gradient(135deg, var(--accent) 0%, #ea580c 100%);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+        
+        h1 {
+            font-size: 1.6em;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+        
         .badge {
             display: inline-block;
-            background: linear-gradient(135deg, #ff9a56 0%, #ff6a00 100%);
+            background: linear-gradient(135deg, var(--accent) 0%, #ea580c 100%);
             color: white;
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: bold;
+            padding: 3px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
             margin-left: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
         }
+        
         .last-updated {
-            font-size: 0.9em;
+            font-size: 0.85em;
             color: var(--text-sub);
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 10px;
+            font-family: 'JetBrains Mono', monospace;
         }
+        
         .status-indicator {
             width: 8px;
             height: 8px;
             border-radius: 50%;
-            background: #4caf50;
+            background: var(--up-color);
             display: inline-block;
             animation: pulse 2s infinite;
+            box-shadow: 0 0 8px var(--up-color);
         }
+        
         @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(0.9); }
         }
+        
+        /* Loading Overlay */
         .loading-overlay {
             position: fixed;
             top: 0;
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(255,255,255,0.95);
+            background: rgba(10, 10, 15, 0.98);
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             z-index: 9999;
+            transition: opacity 0.3s ease;
         }
-        .loading-overlay.hidden { display: none; }
+        
+        .loading-overlay.hidden { 
+            opacity: 0;
+            pointer-events: none;
+        }
+        
         .spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #ff6a00;
+            width: 48px;
+            height: 48px;
+            border: 3px solid var(--card-border);
+            border-top-color: var(--accent);
             border-radius: 50%;
-            width: 50px;
-            height: 50px;
-            animation: spin 1s linear infinite;
+            animation: spin 0.8s linear infinite;
             margin-bottom: 20px;
         }
+        
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        
         .loading-text {
-            color: var(--text-sub);
-            font-size: 16px;
-            margin-bottom: 10px;
-        }
-        .loading-detail {
-            color: #999;
-            font-size: 13px;
-        }
-        .dashboard-grid {
-            display: grid;
-            grid-template-columns: 250px 1fr;
-            gap: 20px;
-        }
-        @media (max-width: 768px) {
-            .dashboard-grid { grid-template-columns: 1fr; }
-            h1 { font-size: 1.5em; }
-        }
-        .sidebar {
-            background: var(--card-bg);
-            padding: 15px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-            height: fit-content;
-        }
-        .sidebar h3 { margin-bottom: 15px; font-size: 1.1em; }
-        .stock-list { list-style: none; padding: 0; margin: 0; }
-        .stock-item {
-            padding: 10px;
-            cursor: pointer;
-            border-bottom: 1px solid var(--border-color);
-            transition: all 0.2s;
-            border-left: 4px solid transparent;
-        }
-        .stock-item:last-child { border-bottom: none; }
-        .stock-item:hover { background-color: #f5f5f5; }
-        .stock-item.active {
-            background-color: #e3f2fd;
-            border-left-color: #2196f3;
-        }
-        .stock-item-name { font-weight: bold; margin-bottom: 4px; }
-        .stock-item-ticker { font-size: 0.8em; color: var(--text-sub); }
-        .main-content { display: flex; flex-direction: column; gap: 20px; }
-        .stats-panel {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 15px;
-            background: var(--card-bg);
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        }
-        .stat-card { text-align: center; padding: 10px; }
-        .stat-label {
-            font-size: 0.85em;
-            color: var(--text-sub);
-            display: block;
+            color: var(--text-main);
+            font-size: 15px;
+            font-weight: 500;
             margin-bottom: 8px;
         }
-        .stat-value { font-size: 1.3em; font-weight: bold; display: block; }
-        .chart-container {
+        
+        .loading-detail {
+            color: var(--text-sub);
+            font-size: 13px;
+        }
+        
+        /* Dashboard Grid */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 24px;
+        }
+        
+        @media (max-width: 900px) {
+            .dashboard-grid { grid-template-columns: 1fr; }
+            h1 { font-size: 1.3em; }
+        }
+        
+        /* Sidebar */
+        .sidebar {
             background: var(--card-bg);
             padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            border-radius: 16px;
+            border: 1px solid var(--card-border);
+            height: fit-content;
+            position: sticky;
+            top: 24px;
         }
-        #chart { width: 100%; height: 500px; }
+        
+        .sidebar-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+        
+        .sidebar h3 {
+            font-size: 0.95em;
+            font-weight: 600;
+            color: var(--text-sub);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+        
+        /* Search Box */
+        .search-container {
+            position: relative;
+            margin-bottom: 16px;
+        }
+        
+        .search-input-wrapper {
+            position: relative;
+        }
+        
+        .search-icon {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            font-size: 14px;
+            pointer-events: none;
+        }
+        
+        .search-input {
+            width: 100%;
+            padding: 12px 14px 12px 42px;
+            background: var(--search-bg);
+            border: 1px solid var(--search-border);
+            border-radius: 10px;
+            color: var(--text-main);
+            font-size: 14px;
+            font-family: inherit;
+            transition: all 0.2s ease;
+        }
+        
+        .search-input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.15);
+        }
+        
+        .search-input::placeholder {
+            color: var(--text-muted);
+        }
+        
+        /* Suggestions Dropdown */
+        .suggestions {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 10px;
+            margin-top: 6px;
+            max-height: 280px;
+            overflow-y: auto;
+            z-index: 100;
+            display: none;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+        }
+        
+        .suggestions.active {
+            display: block;
+        }
+        
+        .suggestion-item {
+            padding: 12px 16px;
+            cursor: pointer;
+            border-bottom: 1px solid var(--card-border);
+            transition: background 0.15s ease;
+        }
+        
+        .suggestion-item:last-child {
+            border-bottom: none;
+        }
+        
+        .suggestion-item:hover,
+        .suggestion-item.selected {
+            background: var(--hover-bg);
+        }
+        
+        .suggestion-name {
+            font-weight: 500;
+            margin-bottom: 4px;
+            font-size: 14px;
+        }
+        
+        .suggestion-ticker {
+            font-size: 12px;
+            color: var(--text-sub);
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        .suggestion-loading,
+        .suggestion-empty {
+            padding: 20px;
+            text-align: center;
+            color: var(--text-sub);
+            font-size: 13px;
+        }
+        
+        /* Stock List */
+        .stock-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .stock-list::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .stock-list::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        .stock-list::-webkit-scrollbar-thumb {
+            background: var(--card-border);
+            border-radius: 3px;
+        }
+        
+        .stock-item {
+            padding: 14px 16px;
+            cursor: pointer;
+            border-radius: 10px;
+            transition: all 0.15s ease;
+            margin-bottom: 6px;
+            border: 1px solid transparent;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .stock-item:hover {
+            background: var(--hover-bg);
+        }
+        
+        .stock-item.active {
+            background: rgba(249, 115, 22, 0.1);
+            border-color: rgba(249, 115, 22, 0.3);
+        }
+        
+        .stock-item-info {
+            flex: 1;
+        }
+        
+        .stock-item-name {
+            font-weight: 500;
+            margin-bottom: 4px;
+            font-size: 14px;
+        }
+        
+        .stock-item-ticker {
+            font-size: 12px;
+            color: var(--text-sub);
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        .stock-item-remove {
+            width: 28px;
+            height: 28px;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: all 0.15s ease;
+        }
+        
+        .stock-item:hover .stock-item-remove {
+            opacity: 1;
+        }
+        
+        .stock-item-remove:hover {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--down-color);
+        }
+        
+        .empty-list {
+            padding: 40px 20px;
+            text-align: center;
+            color: var(--text-muted);
+        }
+        
+        .empty-list-icon {
+            font-size: 32px;
+            margin-bottom: 12px;
+        }
+        
+        .empty-list-text {
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        
+        /* Main Content */
+        .main-content {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+        
+        /* Stats Panel */
+        .stats-panel {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 16px;
+        }
+        
+        .stat-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 14px;
+            padding: 20px;
+            text-align: center;
+            transition: border-color 0.2s ease;
+        }
+        
+        .stat-card:hover {
+            border-color: var(--accent);
+        }
+        
+        .stat-label {
+            font-size: 0.8em;
+            color: var(--text-sub);
+            display: block;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .stat-value {
+            font-size: 1.5em;
+            font-weight: 700;
+            display: block;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        /* Chart Container */
+        .chart-container {
+            background: var(--card-bg);
+            padding: 24px;
+            border-radius: 16px;
+            border: 1px solid var(--card-border);
+        }
+        
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .chart-title {
+            font-size: 1.1em;
+            font-weight: 600;
+        }
+        
+        .chart-subtitle {
+            font-size: 0.85em;
+            color: var(--text-sub);
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        #chart {
+            width: 100%;
+            height: 450px;
+        }
+        
+        .chart-placeholder {
+            height: 450px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+        }
+        
+        .chart-placeholder-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+        
+        .chart-placeholder-text {
+            font-size: 14px;
+        }
+        
+        /* Error Message */
         .error-msg {
             color: var(--down-color);
             text-align: center;
             padding: 60px 20px;
             line-height: 1.8;
         }
+        
+        .error-msg h3 {
+            margin-bottom: 12px;
+        }
+        
+        /* Utility Classes */
         .text-up { color: var(--up-color); }
         .text-down { color: var(--down-color); }
     </style>
 </head>
 <body>
     <!-- ローディングオーバーレイ -->
-    <div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-overlay hidden" id="loadingOverlay">
         <div class="spinner"></div>
         <div class="loading-text">データ取得中...</div>
         <div class="loading-detail">AWS Lambda から株価データを取得しています</div>
@@ -175,10 +510,15 @@
 
     <div class="container">
         <header>
-            <h1>
-                (工事中)
-                <span class="badge">AWS Lambda</span>
-            </h1>
+            <div class="logo-section">
+                <div class="logo-icon">📈</div>
+                <div>
+                    <h1>
+                        (工事中)
+                        <span class="badge">Lambda</span>
+                    </h1>
+                </div>
+            </div>
             <div class="last-updated">
                 <span class="status-indicator"></span>
                 <span id="lastUpdated">待機中...</span>
@@ -187,9 +527,36 @@
 
         <div class="dashboard-grid">
             <aside class="sidebar">
-                <h3>銘柄一覧</h3>
+                <div class="sidebar-header">
+                    <h3>銘柄検索</h3>
+                </div>
+                
+                <!-- 検索ボックス -->
+                <div class="search-container">
+                    <div class="search-input-wrapper">
+                        <span class="search-icon">🔍</span>
+                        <input 
+                            type="text" 
+                            class="search-input" 
+                            id="searchInput" 
+                            placeholder="銘柄コード or 会社名..."
+                            autocomplete="off"
+                        >
+                    </div>
+                    <div class="suggestions" id="suggestions"></div>
+                </div>
+                
+                <div class="sidebar-header" style="margin-top: 8px;">
+                    <h3>ウォッチリスト</h3>
+                </div>
+                
                 <ul id="stockList" class="stock-list">
-                    <li style="padding: 20px; text-align: center; color: #999;">読み込み中...</li>
+                    <li class="empty-list">
+                        <div class="empty-list-icon">📊</div>
+                        <div class="empty-list-text">
+                            銘柄を検索して<br>追加してください
+                        </div>
+                    </li>
                 </ul>
             </aside>
 
@@ -204,146 +571,285 @@
                         <span class="stat-value" id="yearChange">-</span>
                     </div>
                     <div class="stat-card">
-                        <span class="stat-label">最高値</span>
+                        <span class="stat-label">期間最高値</span>
                         <span class="stat-value" id="yearHigh">-</span>
                     </div>
                     <div class="stat-card">
-                        <span class="stat-label">最安値</span>
+                        <span class="stat-label">期間最安値</span>
                         <span class="stat-value" id="yearLow">-</span>
                     </div>
                 </div>
 
                 <div class="chart-container">
-                    <div id="chart"></div>
+                    <div class="chart-header" id="chartHeader" style="display: none;">
+                        <div>
+                            <div class="chart-title" id="chartTitle">-</div>
+                            <div class="chart-subtitle" id="chartSubtitle">-</div>
+                        </div>
+                    </div>
+                    <div id="chart">
+                        <div class="chart-placeholder">
+                            <div class="chart-placeholder-icon">📈</div>
+                            <div class="chart-placeholder-text">銘柄を選択するとチャートが表示されます</div>
+                        </div>
+                    </div>
                 </div>
             </main>
         </div>
     </div>
 
     <script>
+        // ★★★ ここにあなたのAPI Gateway URLを貼り付けてください ★★★
         const API_ENDPOINT = 'https://az8sg0i07j.execute-api.ap-northeast-1.amazonaws.com/default/stock-analysis-api';
 
-        let chart;
-        let lineSeries;
-        let globalData = null;
+        let chart = null;
+        let lineSeries = null;
+        let watchlist = {}; // { ticker: stockData }
+        let selectedTicker = null;
+        let searchTimeout = null;
+        let suggestionIndex = -1;
 
+        // チャート初期化
         function initChart() {
             const container = document.getElementById('chart');
+            container.innerHTML = '';
+            
             chart = LightweightCharts.createChart(container, {
                 width: container.clientWidth,
-                height: 500,
-                layout: { background: { color: '#ffffff' }, textColor: '#333' },
-                grid: { vertLines: { color: '#f0f0f0' }, horzLines: { color: '#f0f0f0' } },
-                rightPriceScale: { borderVisible: false },
-                timeScale: { borderVisible: false, timeVisible: true },
-                crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+                height: 450,
+                layout: {
+                    background: { color: '#12121a' },
+                    textColor: '#71717a'
+                },
+                grid: {
+                    vertLines: { color: '#1e1e2e' },
+                    horzLines: { color: '#1e1e2e' }
+                },
+                rightPriceScale: {
+                    borderVisible: false,
+                    scaleMargins: { top: 0.1, bottom: 0.1 }
+                },
+                timeScale: {
+                    borderVisible: false,
+                    timeVisible: true
+                },
+                crosshair: {
+                    mode: LightweightCharts.CrosshairMode.Normal,
+                    vertLine: { color: '#f97316', width: 1, style: 2 },
+                    horzLine: { color: '#f97316', width: 1, style: 2 }
+                }
             });
-            lineSeries = chart.addLineSeries({ color: '#2962FF', lineWidth: 2 });
+            
+            lineSeries = chart.addLineSeries({
+                color: '#f97316',
+                lineWidth: 2,
+                crosshairMarkerVisible: true,
+                crosshairMarkerRadius: 5
+            });
+            
             window.addEventListener('resize', () => {
-                chart.applyOptions({ width: container.clientWidth });
+                if (chart) {
+                    chart.applyOptions({ width: container.clientWidth });
+                }
             });
         }
 
-        const formatPrice = (num) => `¥${num.toLocaleString('ja-JP')}`;
+        // フォーマッター
+        const formatPrice = (num) => `¥${Math.round(num).toLocaleString('ja-JP')}`;
         const formatPercent = (num) => `${num > 0 ? '+' : ''}${num.toFixed(2)}%`;
 
-        async function loadData() {
-            const loadingOverlay = document.getElementById('loadingOverlay');
-            const startTime = Date.now();
+        // 検索API呼び出し
+        async function searchStocks(query) {
+            if (!query || query.length < 1) {
+                hideSuggestions();
+                return;
+            }
+            
+            const suggestions = document.getElementById('suggestions');
+            suggestions.innerHTML = '<div class="suggestion-loading">検索中...</div>';
+            suggestions.classList.add('active');
             
             try {
-                loadingOverlay.classList.remove('hidden');
+                const response = await fetch(`${API_ENDPOINT}?action=search&q=${encodeURIComponent(query)}`);
+                const data = await response.json();
                 
-                // Lambda API呼び出し
-                const response = await fetch(API_ENDPOINT, {
-                    method: 'GET',
-                    headers: { 'Content-Type': 'application/json' }
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                if (data.results && data.results.length > 0) {
+                    renderSuggestions(data.results);
+                } else {
+                    suggestions.innerHTML = '<div class="suggestion-empty">該当する銘柄が見つかりません</div>';
                 }
-                
-                const json = await response.json();
-                
-                if (!json.stocks || Object.keys(json.stocks).length === 0) {
-                    throw new Error('データ取得に失敗しました（銘柄データなし）');
-                }
-                
-                globalData = json;
-                const loadTime = ((Date.now() - startTime) / 1000).toFixed(1);
-                
-                // 更新情報を表示
-                const updateDate = new Date(json.updated_at);
-                document.getElementById('lastUpdated').textContent = 
-                    `${updateDate.toLocaleTimeString('ja-JP')} 取得 (${loadTime}秒)`;
-
-                renderStockList(json.stocks);
-                
-                const firstTicker = Object.keys(json.stocks)[0];
-                if (firstTicker) {
-                    selectStock(firstTicker);
-                }
-                
-                loadingOverlay.classList.add('hidden');
-
             } catch (error) {
-                console.error('Data loading error:', error);
-                loadingOverlay.classList.add('hidden');
-                showError(error.message);
+                console.error('Search error:', error);
+                suggestions.innerHTML = '<div class="suggestion-empty">検索エラーが発生しました</div>';
             }
         }
 
-        function renderStockList(stocks) {
+        // サジェスト表示
+        function renderSuggestions(results) {
+            const suggestions = document.getElementById('suggestions');
+            suggestions.innerHTML = '';
+            suggestionIndex = -1;
+            
+            results.forEach((item, index) => {
+                const div = document.createElement('div');
+                div.className = 'suggestion-item';
+                div.setAttribute('data-index', index);
+                div.innerHTML = `
+                    <div class="suggestion-name">${item.name}</div>
+                    <div class="suggestion-ticker">${item.symbol}</div>
+                `;
+                div.onclick = () => addToWatchlist(item.symbol, item.name);
+                suggestions.appendChild(div);
+            });
+            
+            suggestions.classList.add('active');
+        }
+
+        function hideSuggestions() {
+            document.getElementById('suggestions').classList.remove('active');
+            suggestionIndex = -1;
+        }
+
+        // ウォッチリストに追加
+        async function addToWatchlist(ticker, name) {
+            if (watchlist[ticker]) {
+                selectStock(ticker);
+                hideSuggestions();
+                document.getElementById('searchInput').value = '';
+                return;
+            }
+            
+            showLoading();
+            
+            try {
+                const response = await fetch(`${API_ENDPOINT}?action=get_stock&ticker=${encodeURIComponent(ticker)}`);
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                watchlist[ticker] = {
+                    ticker: ticker,
+                    name: data.name || name,
+                    ...data
+                };
+                
+                renderWatchlist();
+                selectStock(ticker);
+                
+                // 日本時間で更新時刻を表示
+                if (data.updated_at_jst) {
+                    document.getElementById('lastUpdated').textContent = data.updated_at_jst;
+                }
+                
+            } catch (error) {
+                console.error('Error adding to watchlist:', error);
+                alert(`銘柄の取得に失敗しました: ${error.message}`);
+            }
+            
+            hideLoading();
+            hideSuggestions();
+            document.getElementById('searchInput').value = '';
+        }
+
+        // ウォッチリストから削除
+        function removeFromWatchlist(ticker, event) {
+            event.stopPropagation();
+            delete watchlist[ticker];
+            
+            if (selectedTicker === ticker) {
+                selectedTicker = null;
+                const remaining = Object.keys(watchlist);
+                if (remaining.length > 0) {
+                    selectStock(remaining[0]);
+                } else {
+                    clearChart();
+                }
+            }
+            
+            renderWatchlist();
+        }
+
+        // ウォッチリスト描画
+        function renderWatchlist() {
             const list = document.getElementById('stockList');
+            const tickers = Object.keys(watchlist);
+            
+            if (tickers.length === 0) {
+                list.innerHTML = `
+                    <li class="empty-list">
+                        <div class="empty-list-icon">📊</div>
+                        <div class="empty-list-text">
+                            銘柄を検索して<br>追加してください
+                        </div>
+                    </li>
+                `;
+                return;
+            }
+            
             list.innerHTML = '';
             
-            Object.entries(stocks).forEach(([ticker, stock]) => {
+            tickers.forEach(ticker => {
+                const stock = watchlist[ticker];
                 const li = document.createElement('li');
-                li.className = 'stock-item';
+                li.className = `stock-item${selectedTicker === ticker ? ' active' : ''}`;
                 li.setAttribute('data-ticker', ticker);
                 
-                const nameDiv = document.createElement('div');
-                nameDiv.className = 'stock-item-name';
-                nameDiv.textContent = stock.name;
+                li.innerHTML = `
+                    <div class="stock-item-info">
+                        <div class="stock-item-name">${stock.name}</div>
+                        <div class="stock-item-ticker">${ticker}</div>
+                    </div>
+                    <button class="stock-item-remove" title="削除">✕</button>
+                `;
                 
-                const tickerDiv = document.createElement('div');
-                tickerDiv.className = 'stock-item-ticker';
-                tickerDiv.textContent = ticker;
-                
-                li.appendChild(nameDiv);
-                li.appendChild(tickerDiv);
-                li.onclick = () => selectStock(ticker);
+                li.querySelector('.stock-item-info').onclick = () => selectStock(ticker);
+                li.querySelector('.stock-item-remove').onclick = (e) => removeFromWatchlist(ticker, e);
                 
                 list.appendChild(li);
             });
         }
 
+        // 銘柄選択
         function selectStock(ticker) {
-            if (!globalData || !globalData.stocks[ticker]) return;
-
-            const stock = globalData.stocks[ticker];
+            if (!watchlist[ticker]) return;
             
+            selectedTicker = ticker;
+            const stock = watchlist[ticker];
+            
+            // アクティブ状態更新
             document.querySelectorAll('.stock-item').forEach(el => {
-                el.classList.remove('active');
+                el.classList.toggle('active', el.getAttribute('data-ticker') === ticker);
             });
             
-            const selectedItem = document.querySelector(`.stock-item[data-ticker="${ticker}"]`);
-            if (selectedItem) {
-                selectedItem.classList.add('active');
+            // チャート初期化（初回のみ）
+            if (!chart) {
+                initChart();
             }
-
-            lineSeries.setData(stock.data);
             
-            const isPositive = stock.year_change_pct >= 0;
-            lineSeries.applyOptions({ 
-                color: isPositive ? '#26a69a' : '#ef5350' 
-            });
+            // チャートデータ設定
+            if (stock.data && stock.data.length > 0) {
+                lineSeries.setData(stock.data);
+                
+                const isPositive = stock.year_change_pct >= 0;
+                lineSeries.applyOptions({
+                    color: isPositive ? '#22c55e' : '#ef4444'
+                });
+                
+                chart.timeScale().fitContent();
+            }
             
-            chart.timeScale().fitContent();
+            // ヘッダー更新
+            document.getElementById('chartHeader').style.display = 'flex';
+            document.getElementById('chartTitle').textContent = stock.name;
+            document.getElementById('chartSubtitle').textContent = ticker;
+            
+            // 統計更新
             updateStats(stock);
         }
 
+        // 統計更新
         function updateStats(stock) {
             document.getElementById('statsPanel').style.display = 'grid';
             
@@ -358,25 +864,104 @@
             changeElem.className = `stat-value ${isPositive ? 'text-up' : 'text-down'}`;
         }
 
-        function showError(message) {
-            const chartContainer = document.getElementById('chart');
-            chartContainer.innerHTML = `
-                <div class="error-msg">
-                    <h3>⚠️ エラーが発生しました</h3>
-                    <p>${message}</p>
-                    <p style="margin-top: 15px; font-size: 0.9em;">
-                        API Gatewayの設定を確認してください。<br>
-                        コンソールで詳細を確認: F12 → Console
-                    </p>
+        // チャートクリア
+        function clearChart() {
+            if (chart) {
+                chart.remove();
+                chart = null;
+                lineSeries = null;
+            }
+            
+            document.getElementById('chart').innerHTML = `
+                <div class="chart-placeholder">
+                    <div class="chart-placeholder-icon">📈</div>
+                    <div class="chart-placeholder-text">銘柄を選択するとチャートが表示されます</div>
                 </div>
             `;
             
-            document.getElementById('stockList').innerHTML = 
-                '<li style="padding: 20px; text-align: center; color: #ef5350;">エラー</li>';
+            document.getElementById('chartHeader').style.display = 'none';
+            document.getElementById('statsPanel').style.display = 'none';
         }
 
-        initChart();
-        loadData();
+        // ローディング表示
+        function showLoading() {
+            document.getElementById('loadingOverlay').classList.remove('hidden');
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingOverlay').classList.add('hidden');
+        }
+
+        // 検索入力イベント
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            const query = e.target.value.trim();
+            
+            clearTimeout(searchTimeout);
+            
+            if (query.length === 0) {
+                hideSuggestions();
+                return;
+            }
+            
+            // デバウンス（300ms）
+            searchTimeout = setTimeout(() => {
+                searchStocks(query);
+            }, 300);
+        });
+
+        // キーボードナビゲーション
+        document.getElementById('searchInput').addEventListener('keydown', (e) => {
+            const suggestions = document.getElementById('suggestions');
+            const items = suggestions.querySelectorAll('.suggestion-item');
+            
+            if (!suggestions.classList.contains('active') || items.length === 0) {
+                return;
+            }
+            
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                suggestionIndex = Math.min(suggestionIndex + 1, items.length - 1);
+                updateSuggestionSelection(items);
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                suggestionIndex = Math.max(suggestionIndex - 1, 0);
+                updateSuggestionSelection(items);
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (suggestionIndex >= 0 && items[suggestionIndex]) {
+                    items[suggestionIndex].click();
+                }
+            } else if (e.key === 'Escape') {
+                hideSuggestions();
+            }
+        });
+
+        function updateSuggestionSelection(items) {
+            items.forEach((item, index) => {
+                item.classList.toggle('selected', index === suggestionIndex);
+            });
+            
+            if (suggestionIndex >= 0 && items[suggestionIndex]) {
+                items[suggestionIndex].scrollIntoView({ block: 'nearest' });
+            }
+        }
+
+        // フォーカス外れたら閉じる
+        document.getElementById('searchInput').addEventListener('blur', () => {
+            setTimeout(hideSuggestions, 200);
+        });
+
+        // 初期化
+        document.addEventListener('DOMContentLoaded', () => {
+            // 初期表示用のサンプル銘柄を自動追加（オプション）
+            // コメントアウトを解除すると、初期状態でサンプル銘柄が表示されます
+            /*
+            const defaultTickers = ['7203.T', '6758.T', '9984.T'];
+            defaultTickers.forEach(async (ticker) => {
+                await addToWatchlist(ticker, ticker);
+            });
+            */
+        });
     </script>
 </body>
 </html>
