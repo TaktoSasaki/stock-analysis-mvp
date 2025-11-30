@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AWS学習</title>
+    <title>AWS使った株</title>
     <script src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -514,7 +514,7 @@
                 <div class="logo-icon">📈</div>
                 <div>
                     <h1>
-                        (工事中)
+                        株価チャート
                         <span class="badge">Lambda</span>
                     </h1>
                 </div>
@@ -658,7 +658,119 @@
         const formatPrice = (num) => `¥${Math.round(num).toLocaleString('ja-JP')}`;
         const formatPercent = (num) => `${num > 0 ? '+' : ''}${num.toFixed(2)}%`;
 
-        // 検索API呼び出し
+        // ローマ字→ひらがな変換テーブル
+        const romajiToHiragana = {
+            'a': 'あ', 'i': 'い', 'u': 'う', 'e': 'え', 'o': 'お',
+            'ka': 'か', 'ki': 'き', 'ku': 'く', 'ke': 'け', 'ko': 'こ',
+            'sa': 'さ', 'si': 'し', 'shi': 'し', 'su': 'す', 'se': 'せ', 'so': 'そ',
+            'ta': 'た', 'ti': 'ち', 'chi': 'ち', 'tu': 'つ', 'tsu': 'つ', 'te': 'て', 'to': 'と',
+            'na': 'な', 'ni': 'に', 'nu': 'ぬ', 'ne': 'ね', 'no': 'の',
+            'ha': 'は', 'hi': 'ひ', 'hu': 'ふ', 'fu': 'ふ', 'he': 'へ', 'ho': 'ほ',
+            'ma': 'ま', 'mi': 'み', 'mu': 'む', 'me': 'め', 'mo': 'も',
+            'ya': 'や', 'yu': 'ゆ', 'yo': 'よ',
+            'ra': 'ら', 'ri': 'り', 'ru': 'る', 're': 'れ', 'ro': 'ろ',
+            'wa': 'わ', 'wo': 'を', 'nn': 'ん',
+            'ga': 'が', 'gi': 'ぎ', 'gu': 'ぐ', 'ge': 'げ', 'go': 'ご',
+            'za': 'ざ', 'zi': 'じ', 'ji': 'じ', 'zu': 'ず', 'ze': 'ぜ', 'zo': 'ぞ',
+            'da': 'だ', 'di': 'ぢ', 'du': 'づ', 'de': 'で', 'do': 'ど',
+            'ba': 'ば', 'bi': 'び', 'bu': 'ぶ', 'be': 'べ', 'bo': 'ぼ',
+            'pa': 'ぱ', 'pi': 'ぴ', 'pu': 'ぷ', 'pe': 'ぺ', 'po': 'ぽ',
+            'kya': 'きゃ', 'kyu': 'きゅ', 'kyo': 'きょ',
+            'sha': 'しゃ', 'shu': 'しゅ', 'sho': 'しょ', 'sya': 'しゃ', 'syu': 'しゅ', 'syo': 'しょ',
+            'cha': 'ちゃ', 'chu': 'ちゅ', 'cho': 'ちょ', 'tya': 'ちゃ', 'tyu': 'ちゅ', 'tyo': 'ちょ',
+            'nya': 'にゃ', 'nyu': 'にゅ', 'nyo': 'にょ',
+            'hya': 'ひゃ', 'hyu': 'ひゅ', 'hyo': 'ひょ',
+            'mya': 'みゃ', 'myu': 'みゅ', 'myo': 'みょ',
+            'rya': 'りゃ', 'ryu': 'りゅ', 'ryo': 'りょ',
+            'gya': 'ぎゃ', 'gyu': 'ぎゅ', 'gyo': 'ぎょ',
+            'ja': 'じゃ', 'ju': 'じゅ', 'jo': 'じょ', 'jya': 'じゃ', 'jyu': 'じゅ', 'jyo': 'じょ',
+            'bya': 'びゃ', 'byu': 'びゅ', 'byo': 'びょ',
+            'pya': 'ぴゃ', 'pyu': 'ぴゅ', 'pyo': 'ぴょ'
+        };
+
+        // ひらがな→カタカナ変換
+        function hiraganaToKatakana(str) {
+            return str.replace(/[\u3041-\u3096]/g, match => 
+                String.fromCharCode(match.charCodeAt(0) + 0x60)
+            );
+        }
+
+        // カタカナ→ひらがな変換
+        function katakanaToHiragana(str) {
+            return str.replace(/[\u30A1-\u30F6]/g, match => 
+                String.fromCharCode(match.charCodeAt(0) - 0x60)
+            );
+        }
+
+        // ローマ字をひらがなに変換
+        function convertRomajiToHiragana(romaji) {
+            let result = '';
+            let i = 0;
+            const lower = romaji.toLowerCase();
+            
+            while (i < lower.length) {
+                let found = false;
+                
+                // 3文字、2文字、1文字の順にマッチを試す
+                for (let len = 3; len >= 1; len--) {
+                    const substr = lower.substring(i, i + len);
+                    if (romajiToHiragana[substr]) {
+                        result += romajiToHiragana[substr];
+                        i += len;
+                        found = true;
+                        break;
+                    }
+                }
+                
+                if (!found) {
+                    result += lower[i];
+                    i++;
+                }
+            }
+            
+            return result;
+        }
+
+        // 検索クエリのバリエーションを生成
+        function generateSearchVariations(query) {
+            const variations = new Set();
+            variations.add(query);
+            
+            // 元のクエリを小文字に
+            const lowerQuery = query.toLowerCase();
+            variations.add(lowerQuery);
+            
+            // 大文字に
+            variations.add(query.toUpperCase());
+            
+            // ローマ字→ひらがな
+            const hiragana = convertRomajiToHiragana(lowerQuery);
+            if (hiragana !== lowerQuery) {
+                variations.add(hiragana);
+            }
+            
+            // ひらがな→カタカナ
+            const katakana = hiraganaToKatakana(hiragana);
+            if (katakana !== hiragana) {
+                variations.add(katakana);
+            }
+            
+            // 元がカタカナならひらがなも
+            const fromKatakana = katakanaToHiragana(query);
+            if (fromKatakana !== query) {
+                variations.add(fromKatakana);
+            }
+            
+            // 元がひらがなならカタカナも
+            const toKatakana = hiraganaToKatakana(query);
+            if (toKatakana !== query) {
+                variations.add(toKatakana);
+            }
+            
+            return Array.from(variations);
+        }
+
+        // 検索API呼び出し（複数バリエーションで検索）
         async function searchStocks(query) {
             if (!query || query.length < 1) {
                 hideSuggestions();
@@ -670,11 +782,34 @@
             suggestions.classList.add('active');
             
             try {
-                const response = await fetch(`${API_ENDPOINT}?action=search&q=${encodeURIComponent(query)}`);
-                const data = await response.json();
+                // 検索バリエーションを生成
+                const variations = generateSearchVariations(query);
                 
-                if (data.results && data.results.length > 0) {
-                    renderSuggestions(data.results);
+                // 全バリエーションで並列検索
+                const searchPromises = variations.map(v => 
+                    fetch(`${API_ENDPOINT}?action=search&q=${encodeURIComponent(v)}`)
+                        .then(res => res.json())
+                        .catch(() => ({ results: [] }))
+                );
+                
+                const results = await Promise.all(searchPromises);
+                
+                // 結果をマージして重複排除
+                const allResults = new Map();
+                results.forEach(data => {
+                    if (data.results) {
+                        data.results.forEach(item => {
+                            if (!allResults.has(item.symbol)) {
+                                allResults.set(item.symbol, item);
+                            }
+                        });
+                    }
+                });
+                
+                const mergedResults = Array.from(allResults.values());
+                
+                if (mergedResults.length > 0) {
+                    renderSuggestions(mergedResults);
                 } else {
                     suggestions.innerHTML = '<div class="suggestion-empty">該当する銘柄が見つかりません</div>';
                 }
@@ -903,10 +1038,10 @@
                 return;
             }
             
-            // デバウンス（300ms）
+            // デバウンス（150ms - 1文字目から素早く反応）
             searchTimeout = setTimeout(() => {
                 searchStocks(query);
-            }, 300);
+            }, 150);
         });
 
         // キーボードナビゲーション
