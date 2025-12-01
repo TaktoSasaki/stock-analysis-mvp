@@ -54,6 +54,39 @@
             max-height: 80vh;
             overflow-y: auto;
         }
+        .interval-selector {
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .interval-selector h4 {
+            margin: 0 0 10px 0;
+            font-size: 0.9em;
+            color: var(--text-sub);
+        }
+        .interval-buttons {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 5px;
+        }
+        .interval-btn {
+            padding: 8px 5px;
+            border: 1px solid var(--border-color);
+            background: white;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 0.85em;
+            transition: all 0.2s;
+        }
+        .interval-btn:hover {
+            background-color: #f0f0f0;
+        }
+        .interval-btn.active {
+            background-color: #2196f3;
+            color: white;
+            border-color: #2196f3;
+            font-weight: bold;
+        }
         .stock-list {
             list-style: none;
             padding: 0;
@@ -125,6 +158,17 @@
 
         <div class="dashboard-grid">
             <aside class="sidebar">
+                <div class="interval-selector">
+                    <h4>時間足</h4>
+                    <div class="interval-buttons">
+                        <button class="interval-btn" data-interval="15m">15分</button>
+                        <button class="interval-btn" data-interval="30m">30分</button>
+                        <button class="interval-btn" data-interval="60m">60分</button>
+                        <button class="interval-btn active" data-interval="1d">日足</button>
+                        <button class="interval-btn" data-interval="1wk">週足</button>
+                        <button class="interval-btn" data-interval="1mo">月足</button>
+                    </div>
+                </div>
                 <h3>銘柄一覧</h3>
                 <ul id="stockList" class="stock-list">
                     </ul>
@@ -156,9 +200,14 @@
     </div>
 
     <script>
+        // Lambda API のエンドポイント（環境に応じて変更してください）
+        const API_ENDPOINT = 'https://your-api-gateway-url.execute-api.region.amazonaws.com/prod';
+
         let chart;
         let lineSeries;
         let globalData = null;
+        let currentTicker = null;
+        let currentInterval = '1d';
 
         // チャート初期化
         function initChart() {
@@ -189,31 +238,35 @@
         // 数値フォーマット (カンマ区切り)
         const fmt = (num) => num.toLocaleString();
 
-        // データの読み込みと表示
+        // Lambda APIからデータを取得
         async function loadData() {
             try {
-                // キャッシュ回避用のタイムスタンプ付与（開発中の更新確認用）
-                const response = await fetch('data/stock_data.json?t=' + new Date().getTime());
-                
-                if (response.status === 404) {
-                    throw new Error(
-                        "データファイル(data/stock_data.json)が見つかりません。<br>" +
-                        "初回セットアップ直後は、GitHub Actionsの処理が完了するまで数分待つ必要があります。<br>" +
-                        "Actionsタブで進捗を確認してください。"
-                    );
+                document.getElementById('lastUpdated').textContent = '読み込み中...';
+
+                // デフォルト銘柄リスト
+                const defaultTickers = '7203,6758,9984,6861,8306';
+                const url = `${API_ENDPOINT}?tickers=${defaultTickers}&interval=${currentInterval}`;
+
+                const response = await fetch(url);
+
+                if (!response.ok) {
+                    throw new Error(`API Error: ${response.status} ${response.statusText}`);
                 }
-                if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
-                
+
                 const json = await response.json();
                 globalData = json;
 
                 // 更新日時表示
-                const updateDate = new Date(json.updated_at);
-                document.getElementById('lastUpdated').textContent = 
-                    `最終更新: ${updateDate.toLocaleString('ja-JP')}`;
+                if (json.updated_at_jst) {
+                    document.getElementById('lastUpdated').textContent =
+                        `最終更新: ${json.updated_at_jst}`;
+                } else {
+                    document.getElementById('lastUpdated').textContent =
+                        `最終更新: ${new Date().toLocaleString('ja-JP')}`;
+                }
 
                 renderStockList(json.stocks);
-                
+
                 // 最初の銘柄を自動選択
                 const firstTicker = Object.keys(json.stocks)[0];
                 if (firstTicker) {
@@ -222,11 +275,29 @@
 
             } catch (e) {
                 console.error(e);
-                document.getElementById('chart').innerHTML = 
+                document.getElementById('chart').innerHTML =
                     `<div class="error-msg">
-                        <h3>ステータス通知</h3>
+                        <h3>エラー</h3>
                         <p>${e.message}</p>
+                        <p>API_ENDPOINTが正しく設定されているか確認してください。</p>
                      </div>`;
+            }
+        }
+
+        // 単一銘柄のデータを取得
+        async function loadStockData(ticker, interval) {
+            try {
+                const url = `${API_ENDPOINT}?action=get_stock&ticker=${ticker}&interval=${interval}`;
+                const response = await fetch(url);
+
+                if (!response.ok) {
+                    throw new Error(`API Error: ${response.status}`);
+                }
+
+                return await response.json();
+            } catch (e) {
+                console.error('Failed to load stock data:', e);
+                return null;
             }
         }
 
@@ -251,31 +322,38 @@
         }
 
         // 銘柄選択時の処理
-        function selectStock(ticker) {
-            if (!globalData || !globalData.stocks[ticker]) return;
-
-            const stock = globalData.stocks[ticker];
-            const data = stock.data;
+        async function selectStock(ticker) {
+            currentTicker = ticker;
 
             // リストの選択状態更新
             document.querySelectorAll('.stock-item').forEach(el => el.classList.remove('active'));
-            
+
             // data-ticker 属性を選択
             const targetItem = document.querySelector(`.stock-item[data-ticker="${ticker}"]`);
             if (targetItem) targetItem.classList.add('active');
 
+            // 現在の時間足でデータを取得
+            const stockData = await loadStockData(ticker, currentInterval);
+
+            if (!stockData || !stockData.data) {
+                console.error('Failed to load stock data');
+                return;
+            }
+
+            const data = stockData.data;
+
             // チャート更新
             lineSeries.setData(data);
-            
+
             // 色の設定
-            const isPositive = stock.year_change_pct >= 0;
+            const isPositive = stockData.year_change_pct >= 0;
             const color = isPositive ? '#26a69a' : '#ef5350';
             lineSeries.applyOptions({ color: color });
-            
+
             chart.timeScale().fitContent();
 
             // 統計パネル更新
-            updateStats(stock, isPositive);
+            updateStats(stockData, isPositive);
         }
 
         function updateStats(stock, isPositive) {
@@ -289,6 +367,43 @@
             const changeElem = document.getElementById('yearChange');
             changeElem.textContent = `${stock.year_change_pct > 0 ? '+' : ''}${stock.year_change_pct}%`;
             changeElem.className = `stat-value ${isPositive ? 'text-up' : 'text-down'}`;
+        }
+
+        // 時間足ボタンのイベントリスナー
+        document.querySelectorAll('.interval-btn').forEach(btn => {
+            btn.addEventListener('click', async function() {
+                const newInterval = this.dataset.interval;
+
+                // ボタンの状態更新
+                document.querySelectorAll('.interval-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+
+                // 時間足を更新
+                currentInterval = newInterval;
+
+                // チャートの時刻表示設定を更新
+                updateChartTimeScale(newInterval);
+
+                // 現在選択中の銘柄があれば再読み込み
+                if (currentTicker) {
+                    await selectStock(currentTicker);
+                } else {
+                    // 銘柄リスト全体を再読み込み
+                    await loadData();
+                }
+            });
+        });
+
+        // チャートの時刻表示設定を更新
+        function updateChartTimeScale(interval) {
+            const timeVisible = ['15m', '30m', '60m'].includes(interval);
+            chart.applyOptions({
+                timeScale: {
+                    borderVisible: false,
+                    timeVisible: timeVisible,
+                    secondsVisible: false
+                }
+            });
         }
 
         initChart();
