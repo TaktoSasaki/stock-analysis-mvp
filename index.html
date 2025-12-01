@@ -3,35 +3,451 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stock Analysis Dashboard</title>
-    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <title>Stock Analysis Dashboard - AWS Lambda</title>
+    <script src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-color: #f8f9fa;
-            --card-bg: #ffffff;
-            --text-main: #333;
-            --text-sub: #666;
-            --border-color: #e0e0e0;
-            --up-color: #26a69a;
-            --down-color: #ef5350;
+            --bg-color: #0a0a0f;
+            --card-bg: #12121a;
+            --card-border: #1e1e2e;
+            --text-main: #e4e4e7;
+            --text-sub: #71717a;
+            --text-muted: #52525b;
+            --accent: #f97316;
+            --accent-light: #fb923c;
+            --up-color: #22c55e;
+            --down-color: #ef4444;
+            --search-bg: #18181b;
+            --search-border: #27272a;
+            --hover-bg: #1f1f28;
         }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            margin: 0;
-            padding: 20px;
+            font-family: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, sans-serif;
+            padding: 24px;
             background-color: var(--bg-color);
             color: var(--text-main);
+            min-height: 100vh;
         }
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
+        
+        .container { max-width: 1400px; margin: 0 auto; }
+        
         header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 28px;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+        
+        .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .logo-icon {
+            width: 42px;
+            height: 42px;
+            background: linear-gradient(135deg, var(--accent) 0%, #ea580c 100%);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+        
+        h1 {
+            font-size: 1.6em;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+        
+        .badge {
+            display: inline-block;
+            background: linear-gradient(135deg, var(--accent) 0%, #ea580c 100%);
+            color: white;
+            padding: 3px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-left: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .last-updated {
+            font-size: 0.85em;
+            color: var(--text-sub);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--up-color);
+            display: inline-block;
+            animation: pulse 2s infinite;
+            box-shadow: 0 0 8px var(--up-color);
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(0.9); }
+        }
+        
+        /* Loading Overlay */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(10, 10, 15, 0.98);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            transition: opacity 0.3s ease;
+        }
+        
+        .loading-overlay.hidden { 
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 3px solid var(--card-border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-bottom: 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .loading-text {
+            color: var(--text-main);
+            font-size: 15px;
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+        
+        .loading-detail {
+            color: var(--text-sub);
+            font-size: 13px;
+        }
+        
+        /* Dashboard Grid */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 24px;
+        }
+        
+        @media (max-width: 900px) {
+            .dashboard-grid { grid-template-columns: 1fr; }
+            h1 { font-size: 1.3em; }
+        }
+        
+        /* Sidebar */
+        .sidebar {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 16px;
+            border: 1px solid var(--card-border);
+            height: fit-content;
+            position: sticky;
+            top: 24px;
+        }
+        
+        .sidebar-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+        
+        .sidebar h3 {
+            font-size: 0.95em;
+            font-weight: 600;
+            color: var(--text-sub);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+        
+        /* Search Box */
+        .search-container {
+            position: relative;
+            margin-bottom: 16px;
+        }
+        
+        .search-input-wrapper {
+            position: relative;
+        }
+        
+        .search-icon {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            font-size: 14px;
+            pointer-events: none;
+        }
+        
+        .search-input {
+            width: 100%;
+            padding: 12px 14px 12px 42px;
+            background: var(--search-bg);
+            border: 1px solid var(--search-border);
+            border-radius: 10px;
+            color: var(--text-main);
+            font-size: 14px;
+            font-family: inherit;
+            transition: all 0.2s ease;
+        }
+        
+        .search-input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.15);
+        }
+        
+        .search-input::placeholder {
+            color: var(--text-muted);
+        }
+        
+        /* Suggestions Dropdown */
+        .suggestions {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 10px;
+            margin-top: 6px;
+            max-height: 280px;
+            overflow-y: auto;
+            z-index: 100;
+            display: none;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+        }
+        
+        .suggestions.active {
+            display: block;
+        }
+        
+        .suggestion-item {
+            padding: 12px 16px;
+            cursor: pointer;
+            border-bottom: 1px solid var(--card-border);
+            transition: background 0.15s ease;
+        }
+        
+        .suggestion-item:last-child {
+            border-bottom: none;
+        }
+        
+        .suggestion-item:hover,
+        .suggestion-item.selected {
+            background: var(--hover-bg);
+        }
+        
+        .suggestion-name {
+            font-weight: 500;
+            margin-bottom: 4px;
+            font-size: 14px;
+        }
+        
+        .suggestion-ticker {
+            font-size: 12px;
+            color: var(--text-sub);
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        .suggestion-loading,
+        .suggestion-empty {
+            padding: 20px;
+            text-align: center;
+            color: var(--text-sub);
+            font-size: 13px;
+        }
+        
+        /* Stock List */
+        .stock-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .stock-list::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .stock-list::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        .stock-list::-webkit-scrollbar-thumb {
+            background: var(--card-border);
+            border-radius: 3px;
+        }
+        
+        .stock-item {
+            padding: 14px 16px;
+            cursor: pointer;
+            border-radius: 10px;
+            transition: all 0.15s ease;
+            margin-bottom: 6px;
+            border: 1px solid transparent;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .stock-item:hover {
+            background: var(--hover-bg);
+        }
+        
+        .stock-item.active {
+            background: rgba(249, 115, 22, 0.1);
+            border-color: rgba(249, 115, 22, 0.3);
+        }
+        
+        .stock-item-info {
+            flex: 1;
+        }
+        
+        .stock-item-name {
+            font-weight: 500;
+            margin-bottom: 4px;
+            font-size: 14px;
+        }
+        
+        .stock-item-ticker {
+            font-size: 12px;
+            color: var(--text-sub);
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        .stock-item-remove {
+            width: 28px;
+            height: 28px;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: all 0.15s ease;
+        }
+        
+        .stock-item:hover .stock-item-remove {
+            opacity: 1;
+        }
+        
+        .stock-item-remove:hover {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--down-color);
+        }
+        
+        .empty-list {
+            padding: 40px 20px;
+            text-align: center;
+            color: var(--text-muted);
+        }
+        
+        .empty-list-icon {
+            font-size: 32px;
+            margin-bottom: 12px;
+        }
+        
+        .empty-list-text {
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        
+        /* Main Content */
+        .main-content {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+        
+        /* Stats Panel */
+        .stats-panel {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 16px;
+        }
+        
+        .stat-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 14px;
+            padding: 20px;
+            text-align: center;
+            transition: border-color 0.2s ease;
+        }
+        
+        .stat-card:hover {
+            border-color: var(--accent);
+        }
+        
+        .stat-label {
+            font-size: 0.8em;
+            color: var(--text-sub);
+            display: block;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .stat-value {
+            font-size: 1.5em;
+            font-weight: 700;
+            display: block;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        /* Chart Container */
+        .chart-container {
+            background: var(--card-bg);
+            padding: 24px;
+            border-radius: 16px;
+            border: 1px solid var(--card-border);
+        }
+        
+        .chart-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 20px;
         }
+<<<<<<< HEAD
         .last-updated {
             font-size: 0.9em;
             color: var(--text-sub);
@@ -142,22 +558,89 @@
             color: #856404;
             padding: 20px;
             border-radius: 8px;
+=======
+        
+        .chart-title {
+            font-size: 1.1em;
+            font-weight: 600;
+>>>>>>> 62930533ba18f9c428ae33a60f82fcbab3f8f7b1
         }
         
-        /* Utility classes for colors */
+        .chart-subtitle {
+            font-size: 0.85em;
+            color: var(--text-sub);
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        #chart {
+            width: 100%;
+            height: 450px;
+        }
+        
+        .chart-placeholder {
+            height: 450px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+        }
+        
+        .chart-placeholder-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+        
+        .chart-placeholder-text {
+            font-size: 14px;
+        }
+        
+        /* Error Message */
+        .error-msg {
+            color: var(--down-color);
+            text-align: center;
+            padding: 60px 20px;
+            line-height: 1.8;
+        }
+        
+        .error-msg h3 {
+            margin-bottom: 12px;
+        }
+        
+        /* Utility Classes */
         .text-up { color: var(--up-color); }
         .text-down { color: var(--down-color); }
     </style>
 </head>
 <body>
+    <!-- ローディングオーバーレイ -->
+    <div class="loading-overlay hidden" id="loadingOverlay">
+        <div class="spinner"></div>
+        <div class="loading-text">データ取得中...</div>
+        <div class="loading-detail">AWS Lambda から株価データを取得しています</div>
+    </div>
+
     <div class="container">
         <header>
-            <h1>📈 Stock Analysis Dashboard</h1>
-            <div id="lastUpdated" class="last-updated">更新中...</div>
+            <div class="logo-section">
+                <div class="logo-icon">📈</div>
+                <div>
+                    <h1>
+                        Stock Analysis
+                        <span class="badge">Lambda</span>
+                    </h1>
+                </div>
+            </div>
+            <div class="last-updated">
+                <span class="status-indicator"></span>
+                <span id="lastUpdated">待機中...</span>
+            </div>
         </header>
 
         <div class="dashboard-grid">
             <aside class="sidebar">
+<<<<<<< HEAD
                 <div class="interval-selector">
                     <h4>時間足</h4>
                     <div class="interval-buttons">
@@ -170,8 +653,39 @@
                     </div>
                 </div>
                 <h3>銘柄一覧</h3>
+=======
+                <div class="sidebar-header">
+                    <h3>銘柄検索</h3>
+                </div>
+                
+                <!-- 検索ボックス -->
+                <div class="search-container">
+                    <div class="search-input-wrapper">
+                        <span class="search-icon">🔍</span>
+                        <input 
+                            type="text" 
+                            class="search-input" 
+                            id="searchInput" 
+                            placeholder="銘柄コード or 会社名..."
+                            autocomplete="off"
+                        >
+                    </div>
+                    <div class="suggestions" id="suggestions"></div>
+                </div>
+                
+                <div class="sidebar-header" style="margin-top: 8px;">
+                    <h3>ウォッチリスト</h3>
+                </div>
+                
+>>>>>>> 62930533ba18f9c428ae33a60f82fcbab3f8f7b1
                 <ul id="stockList" class="stock-list">
-                    </ul>
+                    <li class="empty-list">
+                        <div class="empty-list-icon">📊</div>
+                        <div class="empty-list-text">
+                            銘柄を検索して<br>追加してください
+                        </div>
+                    </li>
+                </ul>
             </aside>
 
             <main class="main-content">
@@ -181,25 +695,39 @@
                         <span class="stat-value" id="currentPrice">-</span>
                     </div>
                     <div class="stat-card">
-                        <span class="stat-label">年間騰落率</span>
+                        <span class="stat-label">騰落率</span>
                         <span class="stat-value" id="yearChange">-</span>
                     </div>
                     <div class="stat-card">
-                        <span class="stat-label">年間最高値</span>
+                        <span class="stat-label">期間最高値</span>
                         <span class="stat-value" id="yearHigh">-</span>
                     </div>
                     <div class="stat-card">
-                        <span class="stat-label">年間最安値</span>
+                        <span class="stat-label">期間最安値</span>
                         <span class="stat-value" id="yearLow">-</span>
                     </div>
                 </div>
 
-                <div id="chart" class="chart-container"></div>
+                <div class="chart-container">
+                    <div class="chart-header" id="chartHeader" style="display: none;">
+                        <div>
+                            <div class="chart-title" id="chartTitle">-</div>
+                            <div class="chart-subtitle" id="chartSubtitle">-</div>
+                        </div>
+                    </div>
+                    <div id="chart">
+                        <div class="chart-placeholder">
+                            <div class="chart-placeholder-icon">📈</div>
+                            <div class="chart-placeholder-text">銘柄を選択するとチャートが表示されます</div>
+                        </div>
+                    </div>
+                </div>
             </main>
         </div>
     </div>
 
     <script>
+<<<<<<< HEAD
         // Lambda API のエンドポイント（環境に応じて変更してください）
         const API_ENDPOINT = 'https://your-api-gateway-url.execute-api.region.amazonaws.com/prod';
 
@@ -208,36 +736,68 @@
         let globalData = null;
         let currentTicker = null;
         let currentInterval = '1d';
+=======
+        // ★★★ ここにあなたのAPI Gateway URLを貼り付けてください ★★★
+        const API_ENDPOINT = 'https://az8sg0i07j.execute-api.ap-northeast-1.amazonaws.com/default/stock-analysis-api';
+
+        let chart = null;
+        let lineSeries = null;
+        let watchlist = {}; // { ticker: stockData }
+        let selectedTicker = null;
+        let searchTimeout = null;
+        let suggestionIndex = -1;
+>>>>>>> 62930533ba18f9c428ae33a60f82fcbab3f8f7b1
 
         // チャート初期化
         function initChart() {
             const container = document.getElementById('chart');
+            container.innerHTML = '';
+            
             chart = LightweightCharts.createChart(container, {
                 width: container.clientWidth,
-                height: container.clientHeight, // CSSで500px指定済み
-                layout: { background: { color: '#ffffff' }, textColor: '#333' },
-                grid: { vertLines: { color: '#f0f0f0' }, horzLines: { color: '#f0f0f0' } },
-                rightPriceScale: { borderVisible: false },
-                timeScale: { borderVisible: false, timeVisible: true },
-            });
-            lineSeries = chart.addLineSeries({
-                color: '#2962FF',
-                lineWidth: 2,
-            });
-
-            // コンテナが表示されている場合のみリサイズを適用
-            new ResizeObserver(entries => {
-                if (entries.length === 0 || entries[0].target !== container) return;
-                const newRect = entries[0].contentRect;
-                if (newRect.width > 0 && newRect.height > 0) {
-                    chart.applyOptions({ width: newRect.width, height: newRect.height });
+                height: 450,
+                layout: {
+                    background: { color: '#12121a' },
+                    textColor: '#71717a'
+                },
+                grid: {
+                    vertLines: { color: '#1e1e2e' },
+                    horzLines: { color: '#1e1e2e' }
+                },
+                rightPriceScale: {
+                    borderVisible: false,
+                    scaleMargins: { top: 0.1, bottom: 0.1 }
+                },
+                timeScale: {
+                    borderVisible: false,
+                    timeVisible: true
+                },
+                crosshair: {
+                    mode: LightweightCharts.CrosshairMode.Normal,
+                    vertLine: { color: '#f97316', width: 1, style: 2 },
+                    horzLine: { color: '#f97316', width: 1, style: 2 }
                 }
-            }).observe(container);
+            });
+            
+            lineSeries = chart.addLineSeries({
+                color: '#f97316',
+                lineWidth: 2,
+                crosshairMarkerVisible: true,
+                crosshairMarkerRadius: 5
+            });
+            
+            window.addEventListener('resize', () => {
+                if (chart) {
+                    chart.applyOptions({ width: container.clientWidth });
+                }
+            });
         }
 
-        // 数値フォーマット (カンマ区切り)
-        const fmt = (num) => num.toLocaleString();
+        // フォーマッター
+        const formatPrice = (num) => `¥${Math.round(num).toLocaleString('ja-JP')}`;
+        const formatPercent = (num) => `${num > 0 ? '+' : ''}${num.toFixed(2)}%`;
 
+<<<<<<< HEAD
         // Lambda APIからデータを取得
         async function loadData() {
             try {
@@ -303,24 +863,863 @@
 
         // 銘柄リスト描画
         function renderStockList(stocks) {
+=======
+        // 主要日本株のローカルデータベース（オフライン検索用）
+        // 東証主要銘柄データベース（約500銘柄）- ローカル検索用
+        // c: 証券コード, n: 銘柄名, k: かな読み
+        const stocksDB = [
+{c:"1332",n:"ニッスイ",k:"にっすい"},
+{c:"1333",n:"マルハニチロ",k:"まるはにちろ"},
+{c:"1377",n:"サカタのタネ",k:"さかたのたね"},
+{c:"1414",n:"ショーボンドホールディングス",k:"しょーぼんど"},
+{c:"1417",n:"ミライト・ワン",k:"みらいとわん"},
+{c:"1419",n:"タマホーム",k:"たまほーむ"},
+{c:"1605",n:"INPEX",k:"いんぺっくす"},
+{c:"1662",n:"石油資源開発",k:"せきゆしげんかいはつ"},
+{c:"1719",n:"安藤ハザマ",k:"あんどうはざま"},
+{c:"1720",n:"東急建設",k:"とうきゅうけんせつ"},
+{c:"1721",n:"コムシスホールディングス",k:"こむしす"},
+{c:"1801",n:"大成建設",k:"たいせいけんせつ"},
+{c:"1802",n:"大林組",k:"おおばやしぐみ"},
+{c:"1803",n:"清水建設",k:"しみずけんせつ"},
+{c:"1808",n:"長谷工コーポレーション",k:"はせこう"},
+{c:"1812",n:"鹿島建設",k:"かじまけんせつ"},
+{c:"1820",n:"西松建設",k:"にしまつけんせつ"},
+{c:"1821",n:"三井住友建設",k:"みついすみともけんせつ"},
+{c:"1824",n:"前田建設工業",k:"まえだけんせつ"},
+{c:"1833",n:"奥村組",k:"おくむらぐみ"},
+{c:"1860",n:"戸田建設",k:"とだけんせつ"},
+{c:"1861",n:"熊谷組",k:"くまがいぐみ"},
+{c:"1878",n:"大東建託",k:"だいとうけんたく"},
+{c:"1881",n:"NIPPO",k:"にっぽ"},
+{c:"1885",n:"東亜建設工業",k:"とうあけんせつ"},
+{c:"1893",n:"五洋建設",k:"ごようけんせつ"},
+{c:"1911",n:"住友林業",k:"すみともりんぎょう"},
+{c:"1925",n:"大和ハウス工業",k:"だいわはうす"},
+{c:"1928",n:"積水ハウス",k:"せきすいはうす"},
+{c:"1942",n:"関電工",k:"かんでんこう"},
+{c:"1944",n:"きんでん",k:"きんでん"},
+{c:"1951",n:"エクシオグループ",k:"えくしお"},
+{c:"1959",n:"九電工",k:"きゅうでんこう"},
+{c:"1963",n:"日揮ホールディングス",k:"にっき"},
+{c:"1973",n:"NECネッツエスアイ",k:"ねっつえすあい"},
+{c:"2001",n:"ニップン",k:"にっぷん"},
+{c:"2002",n:"日清製粉グループ本社",k:"にっしんせいふん"},
+{c:"2127",n:"日本M&Aセンター",k:"えむあんどえー"},
+{c:"2146",n:"UTグループ",k:"ゆーてぃー"},
+{c:"2168",n:"パソナグループ",k:"ぱそな"},
+{c:"2175",n:"エス・エム・エス",k:"えすえむえす"},
+{c:"2181",n:"パーソルホールディングス",k:"ぱーそる"},
+{c:"2201",n:"森永製菓",k:"もりながせいか"},
+{c:"2206",n:"江崎グリコ",k:"ぐりこ"},
+{c:"2212",n:"山崎製パン",k:"やまざきせいぱん"},
+{c:"2229",n:"カルビー",k:"かるびー"},
+{c:"2264",n:"森永乳業",k:"もりながにゅうぎょう"},
+{c:"2267",n:"ヤクルト本社",k:"やくると"},
+{c:"2269",n:"明治ホールディングス",k:"めいじ"},
+{c:"2270",n:"雪印メグミルク",k:"ゆきじるし"},
+{c:"2282",n:"日本ハム",k:"にほんはむ"},
+{c:"2317",n:"システナ",k:"しすてな"},
+{c:"2327",n:"日鉄ソリューションズ",k:"にってつ"},
+{c:"2331",n:"綜合警備保障",k:"あるそっく"},
+{c:"2371",n:"カカクコム",k:"かかくこむ"},
+{c:"2379",n:"ディップ",k:"でぃっぷ"},
+{c:"2413",n:"エムスリー",k:"えむすりー"},
+{c:"2432",n:"ディー・エヌ・エー",k:"でぃーえぬえー"},
+{c:"2433",n:"博報堂DYホールディングス",k:"はくほうどう"},
+{c:"2501",n:"サッポロホールディングス",k:"さっぽろ"},
+{c:"2502",n:"アサヒグループホールディングス",k:"あさひ"},
+{c:"2503",n:"キリンホールディングス",k:"きりん"},
+{c:"2587",n:"サントリー食品",k:"さんとりー"},
+{c:"2593",n:"伊藤園",k:"いとうえん"},
+{c:"2651",n:"ローソン",k:"ろーそん"},
+{c:"2670",n:"ABCマート",k:"えーびーしーまーと"},
+{c:"2678",n:"アスクル",k:"あすくる"},
+{c:"2681",n:"ゲオホールディングス",k:"げお"},
+{c:"2685",n:"アダストリア",k:"あだすとりあ"},
+{c:"2695",n:"くら寿司",k:"くらずし"},
+{c:"2702",n:"日本マクドナルド",k:"まくどなるど"},
+{c:"2768",n:"双日",k:"そうじつ"},
+{c:"2784",n:"アルフレッサ",k:"あるふれっさ"},
+{c:"2801",n:"キッコーマン",k:"きっこーまん"},
+{c:"2802",n:"味の素",k:"あじのもと"},
+{c:"2809",n:"キユーピー",k:"きゆーぴー"},
+{c:"2810",n:"ハウス食品",k:"はうす"},
+{c:"2811",n:"カゴメ",k:"かごめ"},
+{c:"2871",n:"ニチレイ",k:"にちれい"},
+{c:"2875",n:"東洋水産",k:"とうようすいさん"},
+{c:"2897",n:"日清食品ホールディングス",k:"にっしんしょくひん"},
+{c:"2914",n:"日本たばこ産業",k:"じぇいてぃー"},
+{c:"2931",n:"ユーグレナ",k:"ゆーぐれな"},
+{c:"3003",n:"ヒューリック",k:"ひゅーりっく"},
+{c:"3038",n:"神戸物産",k:"こうべぶっさん"},
+{c:"3048",n:"ビックカメラ",k:"びっくかめら"},
+{c:"3064",n:"MonotaRO",k:"ものたろう"},
+{c:"3086",n:"J.フロントリテイリング",k:"じぇいふろんと"},
+{c:"3088",n:"マツキヨココカラ",k:"まつきよ"},
+{c:"3092",n:"ZOZO",k:"ぞぞ"},
+{c:"3099",n:"三越伊勢丹",k:"みつこしいせたん"},
+{c:"3101",n:"東洋紡",k:"とうようぼう"},
+{c:"3105",n:"日清紡ホールディングス",k:"にっしんぼう"},
+{c:"3116",n:"トヨタ紡織",k:"とよたぼうしょく"},
+{c:"3141",n:"ウエルシア",k:"うえるしあ"},
+{c:"3186",n:"ネクステージ",k:"ねくすてーじ"},
+{c:"3197",n:"すかいらーく",k:"すかいらーく"},
+{c:"3231",n:"野村不動産",k:"のむらふどうさん"},
+{c:"3288",n:"オープンハウス",k:"おーぷんはうす"},
+{c:"3289",n:"東急不動産",k:"とうきゅうふどうさん"},
+{c:"3349",n:"コスモス薬品",k:"こすもす"},
+{c:"3382",n:"セブン&アイ",k:"せぶんあんどあい"},
+{c:"3391",n:"ツルハ",k:"つるは"},
+{c:"3401",n:"帝人",k:"ていじん"},
+{c:"3402",n:"東レ",k:"とうれ"},
+{c:"3405",n:"クラレ",k:"くられ"},
+{c:"3407",n:"旭化成",k:"あさひかせい"},
+{c:"3436",n:"SUMCO",k:"さむこ"},
+{c:"3543",n:"コメダ",k:"こめだ"},
+{c:"3549",n:"クスリのアオキ",k:"あおき"},
+{c:"3563",n:"スシロー",k:"すしろー"},
+{c:"3626",n:"TIS",k:"てぃーあいえす"},
+{c:"3632",n:"グリー",k:"ぐりー"},
+{c:"3635",n:"コーエーテクモ",k:"こーえーてくも"},
+{c:"3659",n:"ネクソン",k:"ねくそん"},
+{c:"3668",n:"コロプラ",k:"ころぷら"},
+{c:"3697",n:"SHIFT",k:"しふと"},
+{c:"3765",n:"ガンホー",k:"がんほー"},
+{c:"3769",n:"GMOペイメント",k:"じーえむおー"},
+{c:"3774",n:"IIJ",k:"あいあいじぇい"},
+{c:"3778",n:"さくらインターネット",k:"さくら"},
+{c:"3861",n:"王子ホールディングス",k:"おうじ"},
+{c:"3863",n:"日本製紙",k:"にほんせいし"},
+{c:"3880",n:"大王製紙",k:"だいおう"},
+{c:"3923",n:"ラクス",k:"らくす"},
+{c:"3941",n:"レンゴー",k:"れんごー"},
+{c:"3994",n:"マネーフォワード",k:"まねーふぉわーど"},
+{c:"4004",n:"レゾナック",k:"れぞなっく"},
+{c:"4005",n:"住友化学",k:"すみともかがく"},
+{c:"4021",n:"日産化学",k:"にっさんかがく"},
+{c:"4042",n:"東ソー",k:"とうそー"},
+{c:"4043",n:"トクヤマ",k:"とくやま"},
+{c:"4061",n:"デンカ",k:"でんか"},
+{c:"4063",n:"信越化学工業",k:"しんえつかがく"},
+{c:"4088",n:"エア・ウォーター",k:"えあうぉーたー"},
+{c:"4091",n:"大陽日酸",k:"たいようにっさん"},
+{c:"4118",n:"カネカ",k:"かねか"},
+{c:"4151",n:"協和キリン",k:"きょうわきりん"},
+{c:"4182",n:"三菱ガス化学",k:"みつびしがす"},
+{c:"4183",n:"三井化学",k:"みついかがく"},
+{c:"4185",n:"JSR",k:"じぇいえすあーる"},
+{c:"4188",n:"三菱ケミカル",k:"みつびしけみかる"},
+{c:"4204",n:"積水化学工業",k:"せきすいかがく"},
+{c:"4307",n:"野村総合研究所",k:"のむらそうけん"},
+{c:"4324",n:"電通グループ",k:"でんつう"},
+{c:"4385",n:"メルカリ",k:"めるかり"},
+{c:"4401",n:"ADEKA",k:"あでか"},
+{c:"4443",n:"Sansan",k:"さんさん"},
+{c:"4452",n:"花王",k:"かおう"},
+{c:"4478",n:"フリー",k:"ふりー"},
+{c:"4480",n:"メドレー",k:"めどれー"},
+{c:"4502",n:"武田薬品工業",k:"たけだ"},
+{c:"4503",n:"アステラス製薬",k:"あすてらす"},
+{c:"4506",n:"住友ファーマ",k:"すみともふぁーま"},
+{c:"4507",n:"塩野義製薬",k:"しおのぎ"},
+{c:"4516",n:"日本新薬",k:"にほんしんやく"},
+{c:"4519",n:"中外製薬",k:"ちゅうがい"},
+{c:"4523",n:"エーザイ",k:"えーざい"},
+{c:"4528",n:"小野薬品工業",k:"おのやくひん"},
+{c:"4530",n:"久光製薬",k:"ひさみつ"},
+{c:"4536",n:"参天製薬",k:"さんてん"},
+{c:"4543",n:"テルモ",k:"てるも"},
+{c:"4544",n:"H.U.グループ",k:"えいちゆー"},
+{c:"4553",n:"東和薬品",k:"とうわ"},
+{c:"4555",n:"沢井製薬",k:"さわい"},
+{c:"4568",n:"第一三共",k:"だいいちさんきょう"},
+{c:"4569",n:"キョーリン製薬",k:"きょーりん"},
+{c:"4578",n:"大塚ホールディングス",k:"おおつか"},
+{c:"4581",n:"大正製薬",k:"たいしょう"},
+{c:"4612",n:"日本ペイント",k:"にほんぺいんと"},
+{c:"4613",n:"関西ペイント",k:"かんさいぺいんと"},
+{c:"4631",n:"DIC",k:"でぃーあいしー"},
+{c:"4661",n:"オリエンタルランド",k:"おりえんたるらんど"},
+{c:"4666",n:"パーク24",k:"ぱーく"},
+{c:"4680",n:"ラウンドワン",k:"らうんどわん"},
+{c:"4684",n:"オービック",k:"おーびっく"},
+{c:"4689",n:"Zホールディングス",k:"ぜっと"},
+{c:"4704",n:"トレンドマイクロ",k:"とれんどまいくろ"},
+{c:"4716",n:"日本オラクル",k:"おらくる"},
+{c:"4722",n:"フューチャー",k:"ふゅーちゃー"},
+{c:"4732",n:"ユー・エス・エス",k:"ゆーえすえす"},
+{c:"4751",n:"サイバーエージェント",k:"さいばー"},
+{c:"4755",n:"楽天グループ",k:"らくてん"},
+{c:"4756",n:"CCC",k:"しーしーしー"},
+{c:"4768",n:"大塚商会",k:"おおつかしょうかい"},
+{c:"4812",n:"ISID",k:"あいえすあいでぃー"},
+{c:"4901",n:"富士フイルム",k:"ふじふいるむ"},
+{c:"4902",n:"コニカミノルタ",k:"こにか"},
+{c:"4911",n:"資生堂",k:"しせいどう"},
+{c:"4912",n:"ライオン",k:"らいおん"},
+{c:"4919",n:"ミルボン",k:"みるぼん"},
+{c:"4922",n:"コーセー",k:"こーせー"},
+{c:"4927",n:"ポーラ・オルビス",k:"ぽーら"},
+{c:"4967",n:"小林製薬",k:"こばやし"},
+{c:"4974",n:"タカラバイオ",k:"たから"},
+{c:"5019",n:"出光興産",k:"いでみつ"},
+{c:"5020",n:"ENEOS",k:"えねおす"},
+{c:"5021",n:"コスモエネルギー",k:"こすもえなじー"},
+{c:"5101",n:"横浜ゴム",k:"よこはまごむ"},
+{c:"5105",n:"TOYO TIRE",k:"とーよーたいや"},
+{c:"5108",n:"ブリヂストン",k:"ぶりぢすとん"},
+{c:"5110",n:"住友ゴム工業",k:"すみともごむ"},
+{c:"5201",n:"AGC",k:"えーじーしー"},
+{c:"5202",n:"日本板硝子",k:"いたがらす"},
+{c:"5214",n:"日本電気硝子",k:"でんきがらす"},
+{c:"5232",n:"住友大阪セメント",k:"すみともせめんと"},
+{c:"5233",n:"太平洋セメント",k:"たいへいよう"},
+{c:"5301",n:"東海カーボン",k:"とうかいかーぼん"},
+{c:"5332",n:"TOTO",k:"とーとー"},
+{c:"5333",n:"日本ガイシ",k:"がいし"},
+{c:"5334",n:"日本特殊陶業",k:"とくしゅとうぎょう"},
+{c:"5393",n:"ニチアス",k:"にちあす"},
+{c:"5401",n:"日本製鉄",k:"にほんせいてつ"},
+{c:"5406",n:"神戸製鋼所",k:"こうべせいこう"},
+{c:"5411",n:"JFEホールディングス",k:"じぇいえふいー"},
+{c:"5423",n:"東京製鐵",k:"とうきょうせいてつ"},
+{c:"5444",n:"大和工業",k:"だいわこうぎょう"},
+{c:"5471",n:"大同特殊鋼",k:"だいどう"},
+{c:"5480",n:"日本冶金工業",k:"やきん"},
+{c:"5486",n:"日立金属",k:"ひたちきんぞく"},
+{c:"5541",n:"大平洋金属",k:"たいへいようきんぞく"},
+{c:"5631",n:"日本製鋼所",k:"にほんせいこうしょ"},
+{c:"5703",n:"日本軽金属",k:"けいきんぞく"},
+{c:"5706",n:"三井金属鉱業",k:"みついきんぞく"},
+{c:"5711",n:"三菱マテリアル",k:"みつびしまてりある"},
+{c:"5713",n:"住友金属鉱山",k:"すみともきんぞく"},
+{c:"5714",n:"DOWA",k:"どうわ"},
+{c:"5801",n:"古河電気工業",k:"ふるかわでんき"},
+{c:"5802",n:"住友電気工業",k:"すみともでんき"},
+{c:"5803",n:"フジクラ",k:"ふじくら"},
+{c:"5831",n:"しずおかFG",k:"しずおか"},
+{c:"5838",n:"楽天銀行",k:"らくてんぎんこう"},
+{c:"6028",n:"テクノプロ",k:"てくのぷろ"},
+{c:"6098",n:"リクルート",k:"りくるーと"},
+{c:"6103",n:"オークマ",k:"おーくま"},
+{c:"6113",n:"アマダ",k:"あまだ"},
+{c:"6134",n:"FUJI",k:"ふじ"},
+{c:"6136",n:"OSG",k:"おーえすじー"},
+{c:"6141",n:"DMG森精機",k:"もりせいき"},
+{c:"6146",n:"ディスコ",k:"でぃすこ"},
+{c:"6178",n:"日本郵政",k:"にほんゆうせい"},
+{c:"6183",n:"ベルシステム24",k:"べるしすてむ"},
+{c:"6196",n:"ストライク",k:"すとらいく"},
+{c:"6201",n:"豊田自動織機",k:"とよたじどうしょっき"},
+{c:"6268",n:"ナブテスコ",k:"なぶてすこ"},
+{c:"6273",n:"SMC",k:"えすえむしー"},
+{c:"6301",n:"コマツ",k:"こまつ"},
+{c:"6302",n:"住友重機械工業",k:"すみともじゅうき"},
+{c:"6305",n:"日立建機",k:"ひたちけんき"},
+{c:"6324",n:"ハーモニックドライブ",k:"はーもにっく"},
+{c:"6326",n:"クボタ",k:"くぼた"},
+{c:"6361",n:"荏原製作所",k:"えばら"},
+{c:"6366",n:"千代田化工建設",k:"ちよだかこう"},
+{c:"6367",n:"ダイキン工業",k:"だいきん"},
+{c:"6370",n:"栗田工業",k:"くりた"},
+{c:"6383",n:"ダイフク",k:"だいふく"},
+{c:"6395",n:"タダノ",k:"ただの"},
+{c:"6406",n:"フジテック",k:"ふじてっく"},
+{c:"6432",n:"竹内製作所",k:"たけうち"},
+{c:"6448",n:"ブラザー工業",k:"ぶらざー"},
+{c:"6460",n:"セガサミー",k:"せがさみー"},
+{c:"6471",n:"日本精工",k:"にほんせいこう"},
+{c:"6472",n:"NTN",k:"えぬてぃーえぬ"},
+{c:"6473",n:"ジェイテクト",k:"じぇいてくと"},
+{c:"6479",n:"ミネベアミツミ",k:"みねべあ"},
+{c:"6481",n:"THK",k:"てぃーえいちけー"},
+{c:"6501",n:"日立製作所",k:"ひたち"},
+{c:"6502",n:"東芝",k:"とうしば"},
+{c:"6503",n:"三菱電機",k:"みつびしでんき"},
+{c:"6504",n:"富士電機",k:"ふじでんき"},
+{c:"6506",n:"安川電機",k:"やすかわ"},
+{c:"6526",n:"ソシオネクスト",k:"そしおねくすと"},
+{c:"6532",n:"ベイカレント",k:"べいかれんと"},
+{c:"6544",n:"JES",k:"じぇす"},
+{c:"6586",n:"マキタ",k:"まきた"},
+{c:"6588",n:"東芝テック",k:"とうしばてっく"},
+{c:"6594",n:"ニデック",k:"にでっく"},
+{c:"6645",n:"オムロン",k:"おむろん"},
+{c:"6651",n:"日東工業",k:"にっとうこうぎょう"},
+{c:"6674",n:"GSユアサ",k:"ゆあさ"},
+{c:"6701",n:"NEC",k:"えぬいーしー"},
+{c:"6702",n:"富士通",k:"ふじつう"},
+{c:"6703",n:"沖電気工業",k:"おき"},
+{c:"6723",n:"ルネサス",k:"るねさす"},
+{c:"6724",n:"セイコーエプソン",k:"えぷそん"},
+{c:"6728",n:"アルバック",k:"あるばっく"},
+{c:"6740",n:"ジャパンディスプレイ",k:"じゃぱんでぃすぷれい"},
+{c:"6750",n:"エレコム",k:"えれこむ"},
+{c:"6752",n:"パナソニック",k:"ぱなそにっく"},
+{c:"6753",n:"シャープ",k:"しゃーぷ"},
+{c:"6754",n:"アンリツ",k:"あんりつ"},
+{c:"6755",n:"富士通ゼネラル",k:"ふじつうぜねらる"},
+{c:"6758",n:"ソニーグループ",k:"そにー"},
+{c:"6762",n:"TDK",k:"てぃーでぃーけー"},
+{c:"6770",n:"アルプスアルパイン",k:"あるぷす"},
+{c:"6806",n:"ヒロセ電機",k:"ひろせ"},
+{c:"6807",n:"日本航空電子",k:"こうくうでんし"},
+{c:"6841",n:"横河電機",k:"よこがわ"},
+{c:"6845",n:"アズビル",k:"あずびる"},
+{c:"6849",n:"日本光電",k:"こうでん"},
+{c:"6857",n:"アドバンテスト",k:"あどばんてすと"},
+{c:"6861",n:"キーエンス",k:"きーえんす"},
+{c:"6869",n:"シスメックス",k:"しすめっくす"},
+{c:"6902",n:"デンソー",k:"でんそー"},
+{c:"6920",n:"レーザーテック",k:"れーざーてっく"},
+{c:"6923",n:"スタンレー電気",k:"すたんれー"},
+{c:"6925",n:"ウシオ電機",k:"うしお"},
+{c:"6952",n:"カシオ計算機",k:"かしお"},
+{c:"6954",n:"ファナック",k:"ふぁなっく"},
+{c:"6963",n:"ローム",k:"ろーむ"},
+{c:"6965",n:"浜松ホトニクス",k:"はままつ"},
+{c:"6967",n:"新光電気工業",k:"しんこうでんき"},
+{c:"6971",n:"京セラ",k:"きょうせら"},
+{c:"6976",n:"太陽誘電",k:"たいようゆうでん"},
+{c:"6981",n:"村田製作所",k:"むらた"},
+{c:"6988",n:"日東電工",k:"にっとうでんこう"},
+{c:"7003",n:"三井E&S",k:"みついいーあんどえす"},
+{c:"7004",n:"日立造船",k:"ひたちぞうせん"},
+{c:"7011",n:"三菱重工業",k:"みつびしじゅうこう"},
+{c:"7012",n:"川崎重工業",k:"かわさきじゅうこう"},
+{c:"7013",n:"IHI",k:"あいえいちあい"},
+{c:"7201",n:"日産自動車",k:"にっさん"},
+{c:"7202",n:"いすゞ自動車",k:"いすず"},
+{c:"7203",n:"トヨタ自動車",k:"とよた"},
+{c:"7205",n:"日野自動車",k:"ひの"},
+{c:"7211",n:"三菱自動車",k:"みつびしじどうしゃ"},
+{c:"7224",n:"新明和工業",k:"しんめいわ"},
+{c:"7240",n:"NOK",k:"えぬおーけー"},
+{c:"7242",n:"KYB",k:"けーわいびー"},
+{c:"7259",n:"アイシン",k:"あいしん"},
+{c:"7261",n:"マツダ",k:"まつだ"},
+{c:"7267",n:"本田技研工業",k:"ほんだ"},
+{c:"7269",n:"スズキ",k:"すずき"},
+{c:"7270",n:"SUBARU",k:"すばる"},
+{c:"7272",n:"ヤマハ発動機",k:"やまははつどうき"},
+{c:"7282",n:"豊田合成",k:"とよたごうせい"},
+{c:"7701",n:"島津製作所",k:"しまづ"},
+{c:"7729",n:"東京精密",k:"とうきょうせいみつ"},
+{c:"7731",n:"ニコン",k:"にこん"},
+{c:"7733",n:"オリンパス",k:"おりんぱす"},
+{c:"7735",n:"SCREEN",k:"すくりーん"},
+{c:"7741",n:"HOYA",k:"ほーや"},
+{c:"7751",n:"キヤノン",k:"きやのん"},
+{c:"7752",n:"リコー",k:"りこー"},
+{c:"7762",n:"シチズン時計",k:"しちずん"},
+{c:"7832",n:"バンダイナムコ",k:"ばんだいなむこ"},
+{c:"7839",n:"SHOEI",k:"しょうえい"},
+{c:"7860",n:"エイベックス",k:"えいべっくす"},
+{c:"7867",n:"タカラトミー",k:"たからとみー"},
+{c:"7911",n:"凸版印刷",k:"とっぱん"},
+{c:"7912",n:"大日本印刷",k:"だいにほんいんさつ"},
+{c:"7936",n:"アシックス",k:"あしっくす"},
+{c:"7951",n:"ヤマハ",k:"やまは"},
+{c:"7974",n:"任天堂",k:"にんてんどう"},
+{c:"7984",n:"コクヨ",k:"こくよ"},
+{c:"8001",n:"伊藤忠商事",k:"いとうちゅう"},
+{c:"8002",n:"丸紅",k:"まるべに"},
+{c:"8015",n:"豊田通商",k:"とよたつうしょう"},
+{c:"8031",n:"三井物産",k:"みついぶっさん"},
+{c:"8035",n:"東京エレクトロン",k:"とうきょうえれくとろん"},
+{c:"8053",n:"住友商事",k:"すみともしょうじ"},
+{c:"8056",n:"日本ユニシス",k:"ゆにしす"},
+{c:"8058",n:"三菱商事",k:"みつびししょうじ"},
+{c:"8060",n:"キヤノンMJ",k:"きやのんまーけてぃんぐ"},
+{c:"8088",n:"岩谷産業",k:"いわたに"},
+{c:"8111",n:"ゴールドウイン",k:"ごーるどういん"},
+{c:"8113",n:"ユニ・チャーム",k:"ゆにちゃーむ"},
+{c:"8136",n:"サンリオ",k:"さんりお"},
+{c:"8174",n:"日本瓦斯",k:"にほんがす"},
+{c:"8233",n:"高島屋",k:"たかしまや"},
+{c:"8252",n:"丸井グループ",k:"まるい"},
+{c:"8253",n:"クレディセゾン",k:"せぞん"},
+{c:"8267",n:"イオン",k:"いおん"},
+{c:"8273",n:"イズミ",k:"いずみ"},
+{c:"8276",n:"平和堂",k:"へいわどう"},
+{c:"8279",n:"ヤオコー",k:"やおこー"},
+{c:"8282",n:"ケーズ",k:"けーず"},
+{c:"8283",n:"PALTAC",k:"ぱるたっく"},
+{c:"8303",n:"新生銀行",k:"しんせい"},
+{c:"8304",n:"あおぞら銀行",k:"あおぞら"},
+{c:"8306",n:"三菱UFJ",k:"みつびしゆーえふじぇい"},
+{c:"8308",n:"りそな",k:"りそな"},
+{c:"8309",n:"三井住友トラスト",k:"すみともとらすと"},
+{c:"8316",n:"三井住友FG",k:"みついすみとも"},
+{c:"8331",n:"千葉銀行",k:"ちばぎんこう"},
+{c:"8334",n:"群馬銀行",k:"ぐんま"},
+{c:"8354",n:"ふくおかFG",k:"ふくおか"},
+{c:"8355",n:"静岡銀行",k:"しずおかぎんこう"},
+{c:"8358",n:"スルガ銀行",k:"するが"},
+{c:"8359",n:"八十二銀行",k:"はちじゅうに"},
+{c:"8369",n:"京都銀行",k:"きょうと"},
+{c:"8377",n:"ほくほくFG",k:"ほくほく"},
+{c:"8385",n:"伊予銀行",k:"いよ"},
+{c:"8411",n:"みずほFG",k:"みずほ"},
+{c:"8418",n:"山口FG",k:"やまぐち"},
+{c:"8424",n:"芙蓉総合リース",k:"ふよう"},
+{c:"8425",n:"みずほリース",k:"みずほりーす"},
+{c:"8439",n:"東京センチュリー",k:"せんちゅりー"},
+{c:"8473",n:"SBI",k:"えすびーあい"},
+{c:"8591",n:"オリックス",k:"おりっくす"},
+{c:"8593",n:"三菱HCキャピタル",k:"えいちしー"},
+{c:"8595",n:"ジャフコ",k:"じゃふこ"},
+{c:"8601",n:"大和証券",k:"だいわしょうけん"},
+{c:"8604",n:"野村HD",k:"のむら"},
+{c:"8628",n:"松井証券",k:"まつい"},
+{c:"8630",n:"SOMPOホールディングス",k:"そんぽ"},
+{c:"8697",n:"JPX",k:"じぇいぴーえっくす"},
+{c:"8698",n:"マネックス",k:"まねっくす"},
+{c:"8725",n:"MS&AD",k:"えむえすあんどえーでぃー"},
+{c:"8750",n:"第一生命",k:"だいいちせいめい"},
+{c:"8766",n:"東京海上",k:"とうきょうかいじょう"},
+{c:"8795",n:"T&D",k:"てぃーあんどでぃー"},
+{c:"8801",n:"三井不動産",k:"みついふどうさん"},
+{c:"8802",n:"三菱地所",k:"みつびしじしょ"},
+{c:"8804",n:"東京建物",k:"とうきょうたてもの"},
+{c:"8830",n:"住友不動産",k:"すみともふどうさん"},
+{c:"8848",n:"レオパレス21",k:"れおぱれす"},
+{c:"8876",n:"リログループ",k:"りろ"},
+{c:"8905",n:"イオンモール",k:"いおんもーる"},
+{c:"9001",n:"東武鉄道",k:"とうぶ"},
+{c:"9005",n:"東急",k:"とうきゅう"},
+{c:"9006",n:"京浜急行",k:"けいきゅう"},
+{c:"9007",n:"小田急電鉄",k:"おだきゅう"},
+{c:"9008",n:"京王電鉄",k:"けいおう"},
+{c:"9009",n:"京成電鉄",k:"けいせい"},
+{c:"9020",n:"JR東日本",k:"じぇいあーるひがし"},
+{c:"9021",n:"JR西日本",k:"じぇいあーるにし"},
+{c:"9022",n:"JR東海",k:"じぇいあーるとうかい"},
+{c:"9024",n:"西武HD",k:"せいぶ"},
+{c:"9041",n:"近鉄グループ",k:"きんてつ"},
+{c:"9042",n:"阪急阪神",k:"はんきゅう"},
+{c:"9044",n:"南海電気鉄道",k:"なんかい"},
+{c:"9045",n:"京阪HD",k:"けいはん"},
+{c:"9048",n:"名古屋鉄道",k:"めいてつ"},
+{c:"9062",n:"日本通運",k:"にっつう"},
+{c:"9064",n:"ヤマトHD",k:"やまと"},
+{c:"9065",n:"山九",k:"さんきゅう"},
+{c:"9076",n:"セイノー",k:"せいのー"},
+{c:"9086",n:"日立物流",k:"ひたちぶつりゅう"},
+{c:"9101",n:"日本郵船",k:"にほんゆうせん"},
+{c:"9104",n:"商船三井",k:"しょうせんみつい"},
+{c:"9107",n:"川崎汽船",k:"かわさききせん"},
+{c:"9142",n:"JR九州",k:"じぇいあーるきゅうしゅう"},
+{c:"9143",n:"SGHD",k:"えすじー"},
+{c:"9147",n:"NXホールディングス",k:"えぬえっくす"},
+{c:"9201",n:"日本航空",k:"じゃる"},
+{c:"9202",n:"ANA",k:"えーえぬえー"},
+{c:"9432",n:"日本電信電話",k:"えぬてぃーてぃー"},
+{c:"9433",n:"KDDI",k:"けーでぃーでぃーあい"},
+{c:"9434",n:"ソフトバンク",k:"そふとばんく"},
+{c:"9435",n:"光通信",k:"ひかりつうしん"},
+{c:"9449",n:"GMOインターネット",k:"じーえむおー"},
+{c:"9468",n:"KADOKAWA",k:"かどかわ"},
+{c:"9501",n:"東京電力",k:"とうきょうでんりょく"},
+{c:"9502",n:"中部電力",k:"ちゅうぶでんりょく"},
+{c:"9503",n:"関西電力",k:"かんさいでんりょく"},
+{c:"9504",n:"中国電力",k:"ちゅうごくでんりょく"},
+{c:"9505",n:"北陸電力",k:"ほくりくでんりょく"},
+{c:"9506",n:"東北電力",k:"とうほくでんりょく"},
+{c:"9507",n:"四国電力",k:"しこくでんりょく"},
+{c:"9508",n:"九州電力",k:"きゅうしゅうでんりょく"},
+{c:"9509",n:"北海道電力",k:"ほっかいどうでんりょく"},
+{c:"9513",n:"電源開発",k:"でんげんかいはつ"},
+{c:"9531",n:"東京ガス",k:"とうきょうがす"},
+{c:"9532",n:"大阪ガス",k:"おおさかがす"},
+{c:"9533",n:"東邦ガス",k:"とうほうがす"},
+{c:"9602",n:"東宝",k:"とうほう"},
+{c:"9605",n:"東映",k:"とうえい"},
+{c:"9613",n:"NTTデータ",k:"えぬてぃーてぃーでーた"},
+{c:"9616",n:"共立メンテナンス",k:"きょうりつ"},
+{c:"9684",n:"スクウェア・エニックス",k:"すくえに"},
+{c:"9697",n:"カプコン",k:"かぷこん"},
+{c:"9719",n:"SCSK",k:"えすしーえすけー"},
+{c:"9735",n:"セコム",k:"せこむ"},
+{c:"9744",n:"メイテック",k:"めいてっく"},
+{c:"9749",n:"富士ソフト",k:"ふじそふと"},
+{c:"9766",n:"コナミ",k:"こなみ"},
+{c:"9783",n:"ベネッセ",k:"べねっせ"},
+{c:"9831",n:"ヤマダ",k:"やまだ"},
+{c:"9832",n:"オートバックス",k:"おーとばっくす"},
+{c:"9843",n:"ニトリ",k:"にとり"},
+{c:"9861",n:"吉野家",k:"よしのや"},
+{c:"9983",n:"ファーストリテイリング",k:"ゆにくろ"},
+{c:"9984",n:"ソフトバンクグループ",k:"そふとばんくぐるーぷ"},
+{c:"9989",n:"サンドラッグ",k:"さんどらっぐ"}
+        ];
+
+        // localStockDatabase互換形式に変換
+        const localStockDatabase = stocksDB.map(s => ({
+            symbol: s.c + '.T',
+            name: s.n,
+            nameEn: s.n,
+            kana: s.k
+        }));
+
+
+        // ローマ字→ひらがな変換テーブル
+        const romajiToHiragana = {
+            'a': 'あ', 'i': 'い', 'u': 'う', 'e': 'え', 'o': 'お',
+            'ka': 'か', 'ki': 'き', 'ku': 'く', 'ke': 'け', 'ko': 'こ',
+            'sa': 'さ', 'si': 'し', 'shi': 'し', 'su': 'す', 'se': 'せ', 'so': 'そ',
+            'ta': 'た', 'ti': 'ち', 'chi': 'ち', 'tu': 'つ', 'tsu': 'つ', 'te': 'て', 'to': 'と',
+            'na': 'な', 'ni': 'に', 'nu': 'ぬ', 'ne': 'ね', 'no': 'の',
+            'ha': 'は', 'hi': 'ひ', 'hu': 'ふ', 'fu': 'ふ', 'he': 'へ', 'ho': 'ほ',
+            'ma': 'ま', 'mi': 'み', 'mu': 'む', 'me': 'め', 'mo': 'も',
+            'ya': 'や', 'yu': 'ゆ', 'yo': 'よ',
+            'ra': 'ら', 'ri': 'り', 'ru': 'る', 're': 'れ', 'ro': 'ろ',
+            'wa': 'わ', 'wo': 'を', 'nn': 'ん',
+            'ga': 'が', 'gi': 'ぎ', 'gu': 'ぐ', 'ge': 'げ', 'go': 'ご',
+            'za': 'ざ', 'zi': 'じ', 'ji': 'じ', 'zu': 'ず', 'ze': 'ぜ', 'zo': 'ぞ',
+            'da': 'だ', 'di': 'ぢ', 'du': 'づ', 'de': 'で', 'do': 'ど',
+            'ba': 'ば', 'bi': 'び', 'bu': 'ぶ', 'be': 'べ', 'bo': 'ぼ',
+            'pa': 'ぱ', 'pi': 'ぴ', 'pu': 'ぷ', 'pe': 'ぺ', 'po': 'ぽ',
+            'kya': 'きゃ', 'kyu': 'きゅ', 'kyo': 'きょ',
+            'sha': 'しゃ', 'shu': 'しゅ', 'sho': 'しょ', 'sya': 'しゃ', 'syu': 'しゅ', 'syo': 'しょ',
+            'cha': 'ちゃ', 'chu': 'ちゅ', 'cho': 'ちょ', 'tya': 'ちゃ', 'tyu': 'ちゅ', 'tyo': 'ちょ',
+            'nya': 'にゃ', 'nyu': 'にゅ', 'nyo': 'にょ',
+            'hya': 'ひゃ', 'hyu': 'ひゅ', 'hyo': 'ひょ',
+            'mya': 'みゃ', 'myu': 'みゅ', 'myo': 'みょ',
+            'rya': 'りゃ', 'ryu': 'りゅ', 'ryo': 'りょ',
+            'gya': 'ぎゃ', 'gyu': 'ぎゅ', 'gyo': 'ぎょ',
+            'ja': 'じゃ', 'ju': 'じゅ', 'jo': 'じょ', 'jya': 'じゃ', 'jyu': 'じゅ', 'jyo': 'じょ',
+            'bya': 'びゃ', 'byu': 'びゅ', 'byo': 'びょ',
+            'pya': 'ぴゃ', 'pyu': 'ぴゅ', 'pyo': 'ぴょ'
+        };
+
+        // ひらがな→カタカナ変換
+        function hiraganaToKatakana(str) {
+            return str.replace(/[\u3041-\u3096]/g, match => 
+                String.fromCharCode(match.charCodeAt(0) + 0x60)
+            );
+        }
+
+        // カタカナ→ひらがな変換
+        function katakanaToHiragana(str) {
+            return str.replace(/[\u30A1-\u30F6]/g, match => 
+                String.fromCharCode(match.charCodeAt(0) - 0x60)
+            );
+        }
+
+        // ローマ字をひらがなに変換
+        function convertRomajiToHiragana(romaji) {
+            let result = '';
+            let i = 0;
+            const lower = romaji.toLowerCase();
+            
+            while (i < lower.length) {
+                let found = false;
+                
+                // 3文字、2文字、1文字の順にマッチを試す
+                for (let len = 3; len >= 1; len--) {
+                    const substr = lower.substring(i, i + len);
+                    if (romajiToHiragana[substr]) {
+                        result += romajiToHiragana[substr];
+                        i += len;
+                        found = true;
+                        break;
+                    }
+                }
+                
+                if (!found) {
+                    result += lower[i];
+                    i++;
+                }
+            }
+            
+            return result;
+        }
+
+        // 検索クエリのバリエーションを生成
+        function generateSearchVariations(query) {
+            const variations = new Set();
+            variations.add(query);
+            
+            // 元のクエリを小文字に
+            const lowerQuery = query.toLowerCase();
+            variations.add(lowerQuery);
+            
+            // 大文字に
+            variations.add(query.toUpperCase());
+            
+            // ローマ字→ひらがな
+            const hiragana = convertRomajiToHiragana(lowerQuery);
+            if (hiragana !== lowerQuery) {
+                variations.add(hiragana);
+            }
+            
+            // ひらがな→カタカナ
+            const katakana = hiraganaToKatakana(hiragana);
+            if (katakana !== hiragana) {
+                variations.add(katakana);
+            }
+            
+            // 元がカタカナならひらがなも
+            const fromKatakana = katakanaToHiragana(query);
+            if (fromKatakana !== query) {
+                variations.add(fromKatakana);
+            }
+            
+            // 元がひらがなならカタカナも
+            const toKatakana = hiraganaToKatakana(query);
+            if (toKatakana !== query) {
+                variations.add(toKatakana);
+            }
+            
+            return Array.from(variations);
+        }
+
+        // ローカルデータベースを検索
+        function searchLocalDatabase(query) {
+            const lowerQuery = query.toLowerCase();
+            const hiraganaQuery = convertRomajiToHiragana(lowerQuery);
+            const katakanaQuery = hiraganaToKatakana(hiraganaQuery);
+            
+            return localStockDatabase.filter(stock => {
+                // 銘柄コード（数字）で検索
+                if (stock.symbol.toLowerCase().includes(lowerQuery)) return true;
+                if (stock.symbol.replace('.T', '').includes(query)) return true;
+                
+                // 日本語名で検索
+                if (stock.name.includes(query)) return true;
+                if (stock.name.toLowerCase().includes(lowerQuery)) return true;
+                
+                // 英語名で検索
+                if (stock.nameEn.toLowerCase().includes(lowerQuery)) return true;
+                
+                // ひらがな/カタカナで検索
+                if (stock.kana.includes(hiraganaQuery)) return true;
+                if (stock.name.includes(katakanaQuery)) return true;
+                
+                // カタカナ→ひらがな変換して検索
+                const queryFromKatakana = katakanaToHiragana(query);
+                if (stock.kana.includes(queryFromKatakana)) return true;
+                
+                return false;
+            }).map(stock => ({
+                symbol: stock.symbol,
+                name: stock.name,
+                type: 'Stock',
+                exchange: 'TSE',
+                isLocal: true
+            }));
+        }
+
+        // 検索API呼び出し（ローカル + API検索）
+        async function searchStocks(query) {
+            if (!query || query.length < 1) {
+                hideSuggestions();
+                return;
+            }
+            
+            const suggestions = document.getElementById('suggestions');
+            suggestions.innerHTML = '<div class="suggestion-loading">検索中...</div>';
+            suggestions.classList.add('active');
+            
+            try {
+                // まずローカルデータベースを検索（即座に結果を表示）
+                const localResults = searchLocalDatabase(query);
+                
+                if (localResults.length > 0) {
+                    renderSuggestions(localResults);
+                }
+                
+                // 検索バリエーションを生成
+                const variations = generateSearchVariations(query);
+                
+                // 英語名も追加（ローカルDBから推測）
+                const matchedLocal = localStockDatabase.find(s => 
+                    s.name.includes(query) || 
+                    s.kana.includes(convertRomajiToHiragana(query.toLowerCase())) ||
+                    katakanaToHiragana(query).length > 0 && s.kana.includes(katakanaToHiragana(query))
+                );
+                if (matchedLocal && matchedLocal.nameEn) {
+                    variations.push(matchedLocal.nameEn);
+                }
+                
+                // 全バリエーションで並列検索（API）
+                const searchPromises = variations.slice(0, 3).map(v => 
+                    fetch(`${API_ENDPOINT}?action=search&q=${encodeURIComponent(v)}`)
+                        .then(res => res.json())
+                        .catch(() => ({ results: [] }))
+                );
+                
+                const results = await Promise.all(searchPromises);
+                
+                // 結果をマージして重複排除
+                const allResults = new Map();
+                
+                // ローカル結果を先に追加
+                localResults.forEach(item => {
+                    allResults.set(item.symbol, item);
+                });
+                
+                // API結果を追加
+                results.forEach(data => {
+                    if (data.results) {
+                        data.results.forEach(item => {
+                            if (!allResults.has(item.symbol)) {
+                                allResults.set(item.symbol, item);
+                            }
+                        });
+                    }
+                });
+                
+                const mergedResults = Array.from(allResults.values());
+                
+                if (mergedResults.length > 0) {
+                    renderSuggestions(mergedResults);
+                } else {
+                    suggestions.innerHTML = '<div class="suggestion-empty">該当する銘柄が見つかりません</div>';
+                }
+            } catch (error) {
+                console.error('Search error:', error);
+                // エラー時もローカル結果があれば表示
+                const localResults = searchLocalDatabase(query);
+                if (localResults.length > 0) {
+                    renderSuggestions(localResults);
+                } else {
+                    suggestions.innerHTML = '<div class="suggestion-empty">検索エラーが発生しました</div>';
+                }
+            }
+        }
+
+        // サジェスト表示
+        function renderSuggestions(results) {
+            const suggestions = document.getElementById('suggestions');
+            suggestions.innerHTML = '';
+            suggestionIndex = -1;
+            
+            results.forEach((item, index) => {
+                const div = document.createElement('div');
+                div.className = 'suggestion-item';
+                div.setAttribute('data-index', index);
+                div.innerHTML = `
+                    <div class="suggestion-name">${item.name}</div>
+                    <div class="suggestion-ticker">${item.symbol}</div>
+                `;
+                div.onclick = () => addToWatchlist(item.symbol, item.name);
+                suggestions.appendChild(div);
+            });
+            
+            suggestions.classList.add('active');
+        }
+
+        function hideSuggestions() {
+            document.getElementById('suggestions').classList.remove('active');
+            suggestionIndex = -1;
+        }
+
+        // ウォッチリストに追加
+        async function addToWatchlist(ticker, name) {
+            if (watchlist[ticker]) {
+                selectStock(ticker);
+                hideSuggestions();
+                document.getElementById('searchInput').value = '';
+                return;
+            }
+            
+            showLoading();
+            
+            try {
+                const response = await fetch(`${API_ENDPOINT}?action=get_stock&ticker=${encodeURIComponent(ticker)}`);
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                watchlist[ticker] = {
+                    ticker: ticker,
+                    name: data.name || name,
+                    ...data
+                };
+                
+                renderWatchlist();
+                selectStock(ticker);
+                
+                // 日本時間で更新時刻を表示
+                if (data.updated_at_jst) {
+                    document.getElementById('lastUpdated').textContent = data.updated_at_jst;
+                }
+                
+            } catch (error) {
+                console.error('Error adding to watchlist:', error);
+                alert(`銘柄の取得に失敗しました: ${error.message}`);
+            }
+            
+            hideLoading();
+            hideSuggestions();
+            document.getElementById('searchInput').value = '';
+        }
+
+        // ウォッチリストから削除
+        function removeFromWatchlist(ticker, event) {
+            event.stopPropagation();
+            delete watchlist[ticker];
+            
+            if (selectedTicker === ticker) {
+                selectedTicker = null;
+                const remaining = Object.keys(watchlist);
+                if (remaining.length > 0) {
+                    selectStock(remaining[0]);
+                } else {
+                    clearChart();
+                }
+            }
+            
+            renderWatchlist();
+        }
+
+        // ウォッチリスト描画
+        function renderWatchlist() {
+>>>>>>> 62930533ba18f9c428ae33a60f82fcbab3f8f7b1
             const list = document.getElementById('stockList');
+            const tickers = Object.keys(watchlist);
+            
+            if (tickers.length === 0) {
+                list.innerHTML = `
+                    <li class="empty-list">
+                        <div class="empty-list-icon">📊</div>
+                        <div class="empty-list-text">
+                            銘柄を検索して<br>追加してください
+                        </div>
+                    </li>
+                `;
+                return;
+            }
+            
             list.innerHTML = '';
             
-            Object.keys(stocks).forEach(ticker => {
-                const stock = stocks[ticker];
+            tickers.forEach(ticker => {
+                const stock = watchlist[ticker];
                 const li = document.createElement('li');
-                li.className = 'stock-item';
-                // JSでdatasetにセットすると、DOM上は data-ticker="..." となる
-                li.dataset.ticker = ticker; 
+                li.className = `stock-item${selectedTicker === ticker ? ' active' : ''}`;
+                li.setAttribute('data-ticker', ticker);
+                
                 li.innerHTML = `
-                    <div style="font-weight:bold;">${stock.name}</div>
-                    <div style="font-size:0.8em; color:#666;">${ticker}</div>
+                    <div class="stock-item-info">
+                        <div class="stock-item-name">${stock.name}</div>
+                        <div class="stock-item-ticker">${ticker}</div>
+                    </div>
+                    <button class="stock-item-remove" title="削除">✕</button>
                 `;
-                li.onclick = () => selectStock(ticker);
+                
+                li.querySelector('.stock-item-info').onclick = () => selectStock(ticker);
+                li.querySelector('.stock-item-remove').onclick = (e) => removeFromWatchlist(ticker, e);
+                
                 list.appendChild(li);
             });
         }
 
+<<<<<<< HEAD
         // 銘柄選択時の処理
         async function selectStock(ticker) {
             currentTicker = ticker;
@@ -354,21 +1753,62 @@
 
             // 統計パネル更新
             updateStats(stockData, isPositive);
+=======
+        // 銘柄選択
+        function selectStock(ticker) {
+            if (!watchlist[ticker]) return;
+            
+            selectedTicker = ticker;
+            const stock = watchlist[ticker];
+            
+            // アクティブ状態更新
+            document.querySelectorAll('.stock-item').forEach(el => {
+                el.classList.toggle('active', el.getAttribute('data-ticker') === ticker);
+            });
+            
+            // チャート初期化（初回のみ）
+            if (!chart) {
+                initChart();
+            }
+            
+            // チャートデータ設定
+            if (stock.data && stock.data.length > 0) {
+                lineSeries.setData(stock.data);
+                
+                const isPositive = stock.year_change_pct >= 0;
+                lineSeries.applyOptions({
+                    color: isPositive ? '#22c55e' : '#ef4444'
+                });
+                
+                chart.timeScale().fitContent();
+            }
+            
+            // ヘッダー更新
+            document.getElementById('chartHeader').style.display = 'flex';
+            document.getElementById('chartTitle').textContent = stock.name;
+            document.getElementById('chartSubtitle').textContent = ticker;
+            
+            // 統計更新
+            updateStats(stock);
+>>>>>>> 62930533ba18f9c428ae33a60f82fcbab3f8f7b1
         }
 
-        function updateStats(stock, isPositive) {
-            const panel = document.getElementById('statsPanel');
-            panel.style.display = 'grid';
-
-            document.getElementById('currentPrice').textContent = `${fmt(stock.current_price)}円`;
-            document.getElementById('yearHigh').textContent = `${fmt(stock.year_high)}円`;
-            document.getElementById('yearLow').textContent = `${fmt(stock.year_low)}円`;
+        // 統計更新
+        function updateStats(stock) {
+            document.getElementById('statsPanel').style.display = 'grid';
+            
+            const isPositive = stock.year_change_pct >= 0;
+            
+            document.getElementById('currentPrice').textContent = formatPrice(stock.current_price);
+            document.getElementById('yearHigh').textContent = formatPrice(stock.year_high);
+            document.getElementById('yearLow').textContent = formatPrice(stock.year_low);
             
             const changeElem = document.getElementById('yearChange');
-            changeElem.textContent = `${stock.year_change_pct > 0 ? '+' : ''}${stock.year_change_pct}%`;
+            changeElem.textContent = formatPercent(stock.year_change_pct);
             changeElem.className = `stat-value ${isPositive ? 'text-up' : 'text-down'}`;
         }
 
+<<<<<<< HEAD
         // 時間足ボタンのイベントリスナー
         document.querySelectorAll('.interval-btn').forEach(btn => {
             btn.addEventListener('click', async function() {
@@ -408,6 +1848,106 @@
 
         initChart();
         loadData();
+=======
+        // チャートクリア
+        function clearChart() {
+            if (chart) {
+                chart.remove();
+                chart = null;
+                lineSeries = null;
+            }
+            
+            document.getElementById('chart').innerHTML = `
+                <div class="chart-placeholder">
+                    <div class="chart-placeholder-icon">📈</div>
+                    <div class="chart-placeholder-text">銘柄を選択するとチャートが表示されます</div>
+                </div>
+            `;
+            
+            document.getElementById('chartHeader').style.display = 'none';
+            document.getElementById('statsPanel').style.display = 'none';
+        }
+
+        // ローディング表示
+        function showLoading() {
+            document.getElementById('loadingOverlay').classList.remove('hidden');
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingOverlay').classList.add('hidden');
+        }
+
+        // 検索入力イベント
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            const query = e.target.value.trim();
+            
+            clearTimeout(searchTimeout);
+            
+            if (query.length === 0) {
+                hideSuggestions();
+                return;
+            }
+            
+            // デバウンス（150ms - 1文字目から素早く反応）
+            searchTimeout = setTimeout(() => {
+                searchStocks(query);
+            }, 150);
+        });
+
+        // キーボードナビゲーション
+        document.getElementById('searchInput').addEventListener('keydown', (e) => {
+            const suggestions = document.getElementById('suggestions');
+            const items = suggestions.querySelectorAll('.suggestion-item');
+            
+            if (!suggestions.classList.contains('active') || items.length === 0) {
+                return;
+            }
+            
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                suggestionIndex = Math.min(suggestionIndex + 1, items.length - 1);
+                updateSuggestionSelection(items);
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                suggestionIndex = Math.max(suggestionIndex - 1, 0);
+                updateSuggestionSelection(items);
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (suggestionIndex >= 0 && items[suggestionIndex]) {
+                    items[suggestionIndex].click();
+                }
+            } else if (e.key === 'Escape') {
+                hideSuggestions();
+            }
+        });
+
+        function updateSuggestionSelection(items) {
+            items.forEach((item, index) => {
+                item.classList.toggle('selected', index === suggestionIndex);
+            });
+            
+            if (suggestionIndex >= 0 && items[suggestionIndex]) {
+                items[suggestionIndex].scrollIntoView({ block: 'nearest' });
+            }
+        }
+
+        // フォーカス外れたら閉じる
+        document.getElementById('searchInput').addEventListener('blur', () => {
+            setTimeout(hideSuggestions, 200);
+        });
+
+        // 初期化
+        document.addEventListener('DOMContentLoaded', () => {
+            // 初期表示用のサンプル銘柄を自動追加（オプション）
+            // コメントアウトを解除すると、初期状態でサンプル銘柄が表示されます
+            /*
+            const defaultTickers = ['7203.T', '6758.T', '9984.T'];
+            defaultTickers.forEach(async (ticker) => {
+                await addToWatchlist(ticker, ticker);
+            });
+            */
+        });
+>>>>>>> 62930533ba18f9c428ae33a60f82fcbab3f8f7b1
     </script>
 </body>
 </html>
