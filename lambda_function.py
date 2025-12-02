@@ -1,6 +1,7 @@
 import json
 import urllib.request
 import urllib.error
+import urllib.parse
 from datetime import datetime, timedelta, timezone
 
 # 日本時間のタイムゾーン (UTC+9)
