@@ -1,14 +1,10 @@
 {
-  "updated_at": "2026-09-08T23:17:20.933420",
+  "updated_at": "2026-09-09T23:07:42.456432",
   "stocks": {
     "7203.T": {
       "name": "トヨタ自動車",
       "ticker": "7203.T",
       "data": [
-        {
-          "time": "2025-09-08",
-          "value": 2882.078857421875
-        },
         {
           "time": "2025-09-09",
           "value": 2861.7001953125
@@ -980,22 +976,22 @@
         {
           "time": "2026-09-08",
           "value": 2968.5
+        },
+        {
+          "time": "2026-09-09",
+          "value": 2971.0
         }
       ],
-      "current_price": 2968.5,
+      "current_price": 2971.0,
       "year_high": 3886.135986328125,
       "year_low": 2686.0,
-      "year_change_pct": 3.0,
+      "year_change_pct": 3.82,
       "data_points": 244
     },
     "6758.T": {
       "name": "ソニーグループ",
       "ticker": "6758.T",
       "data": [
-        {
-          "time": "2025-09-08",
-          "value": 4155.39013671875
-        },
         {
           "time": "2025-09-09",
           "value": 4188.1640625
@@ -1967,22 +1963,22 @@
         {
           "time": "2026-09-08",
           "value": 3654.0
+        },
+        {
+          "time": "2026-09-09",
+          "value": 3625.0
         }
       ],
-      "current_price": 3654.0,
+      "current_price": 3625.0,
       "year_high": 4681.6923828125,
       "year_low": 3113.0,
-      "year_change_pct": -12.07,
+      "year_change_pct": -13.45,
       "data_points": 244
     },
     "9984.T": {
       "name": "ソフトバンクグループ",
       "ticker": "9984.T",
       "data": [
-        {
-          "time": "2025-09-08",
-          "value": 3956.097900390625
-        },
         {
           "time": "2025-09-09",
           "value": 3784.03955078125
@@ -2954,22 +2950,22 @@
         {
           "time": "2026-09-08",
           "value": 6556.0
+        },
+        {
+          "time": "2026-09-09",
+          "value": 6810.0
         }
       ],
-      "current_price": 6556.0,
+      "current_price": 6810.0,
       "year_high": 8632.0,
       "year_low": 3502.112060546875,
-      "year_change_pct": 65.72,
+      "year_change_pct": 79.97,
       "data_points": 244
     },
     "6861.T": {
       "name": "キーエンス",
       "ticker": "6861.T",
       "data": [
-        {
-          "time": "2025-09-08",
-          "value": 55360.6640625
-        },
         {
           "time": "2025-09-09",
           "value": 54786.15625
@@ -3941,22 +3937,22 @@
         {
           "time": "2026-09-08",
           "value": 76760.0
+        },
+        {
+          "time": "2026-09-09",
+          "value": 76280.0
         }
       ],
-      "current_price": 76760.0,
+      "current_price": 76280.0,
       "year_high": 87660.0,
       "year_low": 52028.45703125,
-      "year_change_pct": 38.65,
+      "year_change_pct": 39.23,
       "data_points": 244
     },
     "8306.T": {
       "name": "三菱UFJ",
       "ticker": "8306.T",
       "data": [
-        {
-          "time": "2025-09-08",
-          "value": 2209.788818359375
-        },
         {
           "time": "2025-09-09",
           "value": 2185.13330078125
@@ -4928,12 +4924,16 @@
         {
           "time": "2026-09-08",
           "value": 3656.0
+        },
+        {
+          "time": "2026-09-09",
+          "value": 3601.0
         }
       ],
-      "current_price": 3656.0,
+      "current_price": 3601.0,
       "year_high": 3799.0,
       "year_low": 2185.13330078125,
-      "year_change_pct": 65.45,
+      "year_change_pct": 64.8,
       "data_points": 244
     }
   },
